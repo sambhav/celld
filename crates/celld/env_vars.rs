@@ -14,6 +14,7 @@ use anyhow::{anyhow, bail};
 /// they cannot return a configuration error at the point of use. This pass
 /// makes those reads infallible without giving malformed values a default.
 pub fn validate() -> anyhow::Result<()> {
+    cell_isolate_limit()?;
     for name in [
         "CELLD_CLOUD",
         "CELLD_CLOUD_RESTART_ON_DEPLOY",
@@ -179,4 +180,53 @@ where
     T::Err: std::fmt::Display,
 {
     Ok(positive(name)?.unwrap_or(default))
+}
+
+/// Operators may trade cell density for CPU parallelism without increasing
+/// the engine's existing 32-cell per-heap failure boundary.
+pub fn cell_isolate_limit() -> anyhow::Result<usize> {
+    parse_cell_isolate_limit(value("CELLD_MAX_CELLS_PER_ISOLATE")?)
+}
+
+pub fn parse_cell_isolate_limit(value: Option<String>) -> anyhow::Result<usize> {
+    let name = "CELLD_MAX_CELLS_PER_ISOLATE";
+    let limit = parse_positive::<usize>(name, value)?.unwrap_or(32);
+    if limit > 32 {
+        bail!("{name} must be between 1 and 32, not {limit}");
+    }
+    Ok(limit)
+}
+
+#[cfg(test)]
+mod cell_isolate_limit_tests {
+    use super::parse_cell_isolate_limit;
+
+    #[test]
+    fn preserves_default_and_accepts_lower_density() {
+        assert_eq!(parse_cell_isolate_limit(None).unwrap(), 32);
+        for count in 1..=32 {
+            assert_eq!(
+                parse_cell_isolate_limit(Some(count.to_string())).unwrap(),
+                count
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_invalid_or_larger_failure_boundaries() {
+        for value in [
+            "",
+            "0",
+            "-1",
+            "33",
+            "1.5",
+            "auto",
+            "999999999999999999999999",
+        ] {
+            assert!(
+                parse_cell_isolate_limit(Some(value.into())).is_err(),
+                "{value}"
+            );
+        }
+    }
 }

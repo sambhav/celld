@@ -366,6 +366,7 @@ TUNING:
   CELLD_ALARM_RESIDENT_MS         Near-alarm residency window
   CELLD_WAKER_TICK_MS             Orphan-alarm scan interval
   CELLD_V8_HEAP_LIMIT_MB          Per-isolate V8 heap limit
+  CELLD_MAX_CELLS_PER_ISOLATE     Cell packing limit (1..32, default: 32)
   CELLD_FETCH_TIMEOUT_S           Outbound fetch timeout
   CELLD_HANDLER_BUDGET_S          JavaScript handler budget
   CELLD_TOKIO_THREADS             Tokio runtime worker threads
