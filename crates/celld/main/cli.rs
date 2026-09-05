@@ -346,6 +346,7 @@ ENVIRONMENT:
   CELLD_ASSET_CACHE_BYTES         Asset cache limit
 
 TUNING:
+  CELLD_S3_ETAG_MODE             S3 CAS token spelling: preserve (default), quoted, unquoted
   CELLD_STORAGE_PROBE             `0` skips the startup conditional-write test
                                   (default: on)
   CELLD_TTL_MS                    Node lease lifetime (default: 10000)

@@ -15,6 +15,7 @@ use anyhow::{anyhow, bail};
 /// makes those reads infallible without giving malformed values a default.
 pub fn validate() -> anyhow::Result<()> {
     cell_isolate_limit()?;
+    crate::s3_etag::S3EtagMode::from_env()?;
     for name in [
         "CELLD_CLOUD",
         "CELLD_CLOUD_RESTART_ON_DEPLOY",

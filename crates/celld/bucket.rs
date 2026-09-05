@@ -23,6 +23,7 @@
 //! In the same spirit a response that carries no CAS token is an error,
 //! never an empty token a later conditional write would trust.
 
+use crate::s3_etag::S3EtagMode;
 use anyhow::anyhow;
 use anyhow::Context;
 use bytes::Bytes;
@@ -158,6 +159,7 @@ pub struct Bucket {
     /// ambiguity must surface as `Err` so the caller reconciles.
     pub cas_store: Arc<dyn ObjectStore>,
     pub backend: StorageBackend,
+    s3_etag_mode: S3EtagMode,
     /// Bucket name, for messages — the store is already bound to it.
     pub name: String,
     /// Empty, or a slash-terminated key prefix every operation is scoped
@@ -470,6 +472,7 @@ impl Bucket {
             paginated: Arc::new(UnpaginatedStore),
             cas_store,
             backend,
+            s3_etag_mode: S3EtagMode::Preserve,
             name,
             prefix,
         }
@@ -523,6 +526,7 @@ impl Bucket {
             paginated: store.clone(),
             cas_store: store,
             backend: StorageBackend::Local,
+            s3_etag_mode: S3EtagMode::Preserve,
             name: database.display().to_string(),
             prefix: String::new(),
         })
@@ -546,6 +550,7 @@ impl Bucket {
             azure: azure_env,
         } = sources;
         let (backend, bucket, prefix) = split_spec(bucket);
+        let s3_etag_mode = S3EtagMode::from_env()?;
         // The prefix is spliced into keys as plain text and stripped off
         // listed keys the same way. A character `object_store` would
         // percent-encode would make the two disagree, so refuse it here
@@ -694,6 +699,7 @@ impl Bucket {
             paginated,
             cas_store,
             backend,
+            s3_etag_mode,
             name: bucket.to_string(),
             prefix,
         })
@@ -710,6 +716,25 @@ impl Bucket {
     #[doc(hidden)]
     pub fn backend(&self) -> StorageBackend {
         self.backend
+    }
+
+    /// Normalize only S3 tokens. GCS generations and other backends are opaque.
+    fn token(&self, e_tag: Option<String>, version: Option<String>) -> anyhow::Result<String> {
+        let token = self.backend.token(e_tag, version)?;
+        if self.backend == StorageBackend::S3 {
+            self.s3_etag_mode.token(token)
+        } else {
+            Ok(token)
+        }
+    }
+
+    fn update(&self, token: &str) -> anyhow::Result<UpdateVersion> {
+        let token = if self.backend == StorageBackend::S3 {
+            self.s3_etag_mode.token(token.to_string())?
+        } else {
+            token.to_string()
+        };
+        Ok(self.backend.update(&token))
     }
 
     /// Scope a caller's key to this client's prefix.
@@ -729,7 +754,6 @@ impl Bucket {
         match self.store.get(&Path::from(key.as_str())).await {
             Ok(result) => {
                 let token = self
-                    .backend
                     .token(result.meta.e_tag.clone(), result.meta.version.clone())
                     .with_context(|| format!("read {}://{}/{key}", self.scheme(), self.name))?;
                 let bytes = result.bytes().await.with_context(|| {
@@ -750,7 +774,6 @@ impl Bucket {
         match self.store.head(&Path::from(key.as_str())).await {
             Ok(meta) => {
                 let token = self
-                    .backend
                     .token(meta.e_tag, meta.version)
                     .with_context(|| format!("head {}://{}/{key}", self.scheme(), self.name))?;
                 Ok(Some((meta.size, token)))
@@ -844,7 +867,7 @@ impl Bucket {
         let key = self.key(key);
         let mode = match token {
             None => PutMode::Create,
-            Some(token) => PutMode::Update(self.backend.update(token)),
+            Some(token) => PutMode::Update(self.update(token)?),
         };
         match self
             .cas_store
@@ -859,16 +882,13 @@ impl Bucket {
                 // The write applied; a result without a usable token still
                 // surfaces as `Err`, which callers already treat as "may
                 // have committed" and reconcile.
-                let token = self
-                    .backend
-                    .token(result.e_tag, result.version)
-                    .with_context(|| {
-                        format!(
-                            "conditional write {}://{}/{key} applied without a CAS token",
-                            self.scheme(),
-                            self.name
-                        )
-                    })?;
+                let token = self.token(result.e_tag, result.version).with_context(|| {
+                    format!(
+                        "conditional write {}://{}/{key} applied without a CAS token",
+                        self.scheme(),
+                        self.name
+                    )
+                })?;
                 Ok(Some(token))
             }
             Err(error) if is_clean_cas_rejection(&error) => Ok(None),
@@ -1170,7 +1190,7 @@ impl Bucket {
                             self.name
                         ));
                     };
-                    PutMode::Update(self.backend.update(&cas))
+                    PutMode::Update(self.update(&cas)?)
                 }
                 // Nothing there: only a condition that an absent object can
                 // satisfy may write, and it writes as a create so that a
@@ -1199,7 +1219,6 @@ impl Bucket {
             Ok(result) => Ok(Some(BlobMeta {
                 size,
                 cas: self
-                    .backend
                     .token(result.e_tag.clone(), result.version.clone())
                     .ok(),
                 etag: result.e_tag,
@@ -1330,10 +1349,7 @@ impl Bucket {
             size: meta.size,
             etag: meta.e_tag.clone(),
             version: meta.version.clone(),
-            cas: self
-                .backend
-                .token(meta.e_tag.clone(), meta.version.clone())
-                .ok(),
+            cas: self.token(meta.e_tag.clone(), meta.version.clone()).ok(),
             uploaded_ms: meta.last_modified.timestamp_millis(),
             attributes: BlobAttributes::read(attributes),
         }

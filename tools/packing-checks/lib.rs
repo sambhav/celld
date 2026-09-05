@@ -5,6 +5,8 @@
 mod env_vars;
 #[path = "../../crates/logic/isolate.rs"]
 mod isolate;
+#[path = "../../crates/celld/s3_etag.rs"]
+mod s3_etag;
 
 #[cfg(test)]
 mod packing_tests {
