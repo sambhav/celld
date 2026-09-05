@@ -58,7 +58,8 @@ jobs:
           rustup toolchain install "$RUST_VERSION" --profile minimal
           rustup default "$RUST_VERSION"
           test "$(rustc -vV | sed -n 's/^host: //p')" = "$TARGET"
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
+        id: cache
         with:
           path: |
             ~/.cargo/registry
@@ -70,6 +71,15 @@ jobs:
         run: cargo test --manifest-path tools/packing-checks/Cargo.toml --locked
       - name: Build release binary
         run: cargo build -p celld --target "$TARGET" --release --locked
+      - name: Cache the successful build before running binary checks
+        uses: actions/cache/save@v4
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ steps.cache.outputs.cache-primary-key }}
       - name: Test S3 ETag spelling and conditional-write fencing through the binary
         run: python3 tools/storage-checks/probe.py "target/$TARGET/release/celld" -v
       - name: Package and verify binary
@@ -84,7 +94,7 @@ jobs:
           binary = pathlib.Path(f'target/{target}/release/celld')
           version = tomllib.loads(pathlib.Path('crates/celld/Cargo.toml').read_text())['package']['version']
           reported = subprocess.check_output([str(binary), '--version'], text=True).strip()
-          assert reported.split()[:2] == ['celld', version], reported
+          assert reported == f'celld {version}', reported
           source = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
           assert source == os.environ['SOURCE_SHA']
           out = pathlib.Path('out'); out.mkdir()
@@ -159,7 +169,7 @@ jobs:
     needs: assemble
     if: >-
       github.event_name != 'pull_request' ||
-      (github.event.label.name == 'release-binaries' &&
+      (contains(github.event.pull_request.labels.*.name, 'release-binaries') &&
        github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-24.04
     timeout-minutes: 10

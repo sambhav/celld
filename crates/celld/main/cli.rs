@@ -62,11 +62,10 @@ impl Action {
     /// parses. Sharing one stream between the two prefixes an operator's data
     /// with whatever the process happened to warn about at startup, which is
     /// how this was found -- an allocator warning landed in front of a value.
+    /// Help and version output are answers too, including on macOS where
+    /// unsupported allocator tuning can emit a startup warning.
     pub(crate) fn stdout_is_data(&self) -> bool {
-        !matches!(
-            self,
-            Self::Run(_) | Self::Dev(_) | Self::Help | Self::Version
-        )
+        !matches!(self, Self::Run(_) | Self::Dev(_))
     }
 }
 
