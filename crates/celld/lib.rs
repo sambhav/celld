@@ -329,6 +329,7 @@ pub mod deploy;
 pub mod dev;
 pub mod drain_token;
 pub mod env_vars;
+pub mod s3_etag;
 #[cfg(celld_internal_tests)]
 #[allow(clippy::disallowed_methods)]
 #[doc(hidden)]

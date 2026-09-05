@@ -686,6 +686,8 @@ For the full list, run `celld -h`. This table shows the primary settings:
 | `CELLD_MAX_CELL_REQUESTS` | The concurrent fetch limit for one Durable Object or Queue broker (default: 64) |
 | `CELLD_MAX_REQUEST_BODY_BYTES` | The body limit for a public Worker request or a direct Durable Object request (default: 1 GiB) |
 | `CELLD_MAX_RESIDENT_CELLS` | The hard limit for resident cells, enforced at admission |
+| `CELLD_S3_ETAG_MODE` | S3 CAS token spelling: `preserve` (default), `quoted`, or `unquoted`. Compatibility modes normalize surrounding quotes on read/write tokens and conditional updates. Keep the startup storage probe enabled to verify the endpoint enforces conditional writes. |
+| `CELLD_MAX_CELLS_PER_ISOLATE` | Cell packing limit per V8 isolate (1–32; default: 32). Lower values can increase CPU parallelism at the cost of additional heaps. Packing, retirement, and node memory admission rules remain unchanged. This is a process-start setting; it does not migrate existing cells |
 | `CELLD_MAX_RSS_MB` | The memory threshold for pressure shedding, applied to the greater of the allocator-adjusted RSS and the allocator-adjusted active cgroup working set (default: 80% of the available memory; 0 disables the threshold and the absolute cap) |
 | `CELLD_OUTPUT_GATE` | The default is `1`, so celld proves each write durable before it acknowledges the write. Set `0` to remove the replication wait and accept possible loss of an acknowledged write |
 | `CELLD_DURABILITY` | How celld proves a write durable before it answers. The default is `fleet`: the node serving the cell sends the write to one or two other nodes and answers once they hold it on disk, or once the bucket upload finishes, whichever comes first. This needs two or more nodes; a single node has nobody to send to, so every write waits for the bucket. Set `bucket` to always wait for the bucket |
@@ -706,3 +708,8 @@ defaults.
 An unset variable selects its documented default. A Boolean variable
 accepts only `0` or `1`. celld exits during startup when a supplied value
 is invalid.
+
+## Fork-specific options and downloads
+
+See [fork configuration and native binaries](fork.md) for S3 ETag spelling
+compatibility, platform builds, and draft releases.

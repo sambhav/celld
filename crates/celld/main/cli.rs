@@ -62,11 +62,10 @@ impl Action {
     /// parses. Sharing one stream between the two prefixes an operator's data
     /// with whatever the process happened to warn about at startup, which is
     /// how this was found -- an allocator warning landed in front of a value.
+    /// Help and version output are answers too, including on macOS where
+    /// unsupported allocator tuning can emit a startup warning.
     pub(crate) fn stdout_is_data(&self) -> bool {
-        !matches!(
-            self,
-            Self::Run(_) | Self::Dev(_) | Self::Help | Self::Version
-        )
+        !matches!(self, Self::Run(_) | Self::Dev(_))
     }
 }
 
@@ -346,6 +345,7 @@ ENVIRONMENT:
   CELLD_ASSET_CACHE_BYTES         Asset cache limit
 
 TUNING:
+  CELLD_S3_ETAG_MODE             S3 CAS token spelling: preserve (default), quoted, unquoted
   CELLD_STORAGE_PROBE             `0` skips the startup conditional-write test
                                   (default: on)
   CELLD_TTL_MS                    Node lease lifetime (default: 10000)
@@ -366,6 +366,7 @@ TUNING:
   CELLD_ALARM_RESIDENT_MS         Near-alarm residency window
   CELLD_WAKER_TICK_MS             Orphan-alarm scan interval
   CELLD_V8_HEAP_LIMIT_MB          Per-isolate V8 heap limit
+  CELLD_MAX_CELLS_PER_ISOLATE     Cell packing limit (1..32, default: 32)
   CELLD_FETCH_TIMEOUT_S           Outbound fetch timeout
   CELLD_HANDLER_BUDGET_S          JavaScript handler budget
   CELLD_TOKIO_THREADS             Tokio runtime worker threads
