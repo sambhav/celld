@@ -1,0 +1,43 @@
+name: Native Python call profile
+on:
+  pull_request:
+    types: [labeled]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  profile:
+    if: github.event.label.name == 'profile-native-python'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.7'
+          cache: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-native
+          path: native-bin
+          run-id: 34019509877
+          github-token: ${{ github.token }}
+      - run: |
+          chmod +x native-bin/celld
+          python tools/python-runtime/build.py candidate-runtime
+          python tools/python-bench/profile.py --binary native-bin/celld --runtime candidate-runtime
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-python-profile
+          path: |
+            tools/python-bench/build/**/profiles.json
+            tools/python-bench/build/**/*.log
