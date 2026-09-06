@@ -1,0 +1,168 @@
+//! Native Python execution. The embedding host owns storage, I/O and lifecycle.
+pub mod exports;
+use monty::{FunctionCall, RunProgress};
+use monty_types::{MontyObject, PrintWriter};
+use serde_json::{Value, json};
+
+/// Explicit capability registry. Python cannot select arbitrary host methods.
+pub const CAPABILITIES: &[&str] = &[
+    "storage.get",
+    "storage.put",
+    "storage.delete",
+    "storage.list",
+    "storage.delete_all",
+    "storage.sql",
+    "storage.get_alarm",
+    "storage.set_alarm",
+    "storage.delete_alarm",
+    "storage.transaction_begin",
+    "storage.transaction_commit",
+    "storage.transaction_rollback",
+    "object.call",
+    "fetch",
+    "sleep",
+    "now",
+    "uuid",
+    "log",
+];
+
+pub struct Session {
+    pending: Option<FunctionCall>,
+    calls: usize,
+}
+impl Session {
+    pub fn start(
+        function: &exports::Function,
+        args: &Value,
+        context: &Value,
+    ) -> Result<(Self, Value), String> {
+        let mut session = Self {
+            pending: None,
+            calls: 0,
+        };
+        let event = session.advance(function.start_with_context(args, context)?)?;
+        Ok((session, event))
+    }
+    pub fn resume(&mut self, reply: Value) -> Result<Value, String> {
+        let call = self.pending.take().ok_or("session is not suspended")?;
+        if reply.to_string().len() > 1024 * 1024 {
+            return Err("host result exceeds 1 MiB".into());
+        }
+        let progress = call
+            .resume(
+                MontyObject::String(reply.to_string()),
+                PrintWriter::Disabled,
+            )
+            .map_err(|e| e.to_string())?;
+        self.advance(progress)
+    }
+    fn advance(&mut self, progress: RunProgress) -> Result<Value, String> {
+        match progress {
+            RunProgress::Complete(MontyObject::String(result)) => {
+                if result.len() > 1024 * 1024 {
+                    return Err("result exceeds 1 MiB".into());
+                }
+                Ok(
+                    json!({"done":true,"result":serde_json::from_str::<Value>(&result).map_err(|e|e.to_string())?}),
+                )
+            }
+            RunProgress::FunctionCall(call) => {
+                self.calls += 1;
+                if self.calls > 1000 {
+                    return Err("host call limit exceeded".into());
+                }
+                if call.function_name != "_celld_host"
+                    || !call.kwargs.is_empty()
+                    || call.object_id.is_some()
+                {
+                    return Err("unregistered host function".into());
+                }
+                let [MontyObject::String(operation), MontyObject::String(args)] =
+                    call.args.as_slice()
+                else {
+                    return Err("invalid host arguments".into());
+                };
+                if !CAPABILITIES.contains(&operation.as_str()) {
+                    return Err("unknown capability".into());
+                }
+                if args.len() > 1024 * 1024 {
+                    return Err("host arguments exceed 1 MiB".into());
+                }
+                let args: Value = serde_json::from_str(args).map_err(|e| e.to_string())?;
+                if !args.is_array() {
+                    return Err("host arguments must be an array".into());
+                }
+                let event = json!({"done":false,"operation":operation,"args":args});
+                self.pending = Some(call);
+                Ok(event)
+            }
+            _ => Err(
+                "unsupported suspension; only registered celld capabilities are available".into(),
+            ),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn classes_export_public_methods_and_construct_with_context() {
+        let source = "class Counter:\n    def __init__(self, ctx): self.ctx=ctx\n    def add(self, amount:int=1): return self.ctx.storage.get('n',0)+amount\n    def _private(self): pass\n";
+        let module = exports::Module::compile_class(source, "Counter").unwrap();
+        assert_eq!(module.manifest().as_array().unwrap().len(), 1);
+        let (mut session, event) =
+            Session::start(module.get("add").unwrap(), &json!({"amount":2}), &json!({})).unwrap();
+        assert_eq!(event["operation"], "storage.get");
+        assert_eq!(session.resume(json!({"result":40})).unwrap()["result"], 42);
+        assert!(exports::Module::compile_class(source, "Missing").is_err());
+        let module = exports::Module::compile_class(
+            "class Hello:\n    def hello(self, name:str='world'): return name\n",
+            "Hello",
+        )
+        .unwrap();
+        assert_eq!(
+            Session::start(module.get("hello").unwrap(), &json!({}), &json!({}))
+                .unwrap()
+                .1["result"],
+            "world"
+        );
+    }
+    #[test]
+    fn context_is_injected_and_not_a_client_argument() {
+        let module = exports::Module::compile("def increment(ctx: Context, amount:int=1):\n    value=ctx.storage.get('count', 0)+amount\n    ctx.storage.put('count', value)\n    return {'value':value, 'id':ctx.id}\n").unwrap();
+        let f = module.get("increment").unwrap();
+        assert!(Session::start(f, &json!({"ctx":{}}), &json!({})).is_err());
+        let (mut session, event) =
+            Session::start(f, &json!({"amount":2}), &json!({"id":"object-a"})).unwrap();
+        assert_eq!(event["operation"], "storage.get");
+        let event = session.resume(json!({"result":40})).unwrap();
+        assert_eq!(event["args"], json!(["count", 42]));
+        let event = session.resume(json!({"result":null})).unwrap();
+        assert_eq!(event["result"], json!({"value":42,"id":"object-a"}));
+        assert!(session.resume(json!({})).is_err());
+    }
+    #[test]
+    fn host_errors_are_catchable_and_transactions_rollback() {
+        let m=exports::Module::compile("def fail(ctx):\n    def update(storage):\n        storage.put('x', 1)\n        raise ValueError('abort')\n    try:\n        ctx.storage.transaction(update)\n    except ValueError:\n        return 'rolled back'\n").unwrap();
+        let (mut s, e) = Session::start(m.get("fail").unwrap(), &json!({}), &json!({})).unwrap();
+        assert_eq!(e["operation"], "storage.transaction_begin");
+        assert_eq!(
+            s.resume(json!({"result":null})).unwrap()["operation"],
+            "storage.put"
+        );
+        assert_eq!(
+            s.resume(json!({"result":null})).unwrap()["operation"],
+            "storage.transaction_rollback"
+        );
+        assert_eq!(
+            s.resume(json!({"result":null})).unwrap()["result"],
+            "rolled back"
+        );
+    }
+    #[test]
+    fn undeclared_capabilities_fail_closed() {
+        let m = exports::Module::compile("def bad(): return _celld_host('shell', '[]')").unwrap();
+        assert!(Session::start(m.get("bad").unwrap(), &json!({}), &json!({})).is_err());
+    }
+}

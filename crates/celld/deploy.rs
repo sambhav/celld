@@ -36,6 +36,7 @@ use std::time::{Duration, Instant};
 /// Config keys we understand. Anything else is an error: refusing is
 /// compat-safe, guessing produces confusing activation failures later.
 const SUPPORTED_KEYS: &[&str] = &[
+    "python_runtime",
     "$schema",
     "name",
     "main",
@@ -455,10 +456,10 @@ pub fn build_with_hooks(options: &Options, hooks: &dyn crate::build_hooks::Build
                 if project.no_bundle {
                     bail!("Python entrypoints cannot set no_bundle");
                 }
-                if project.do_classes.iter().any(|class| !is_reserved_class(class)) || project.has_workflows || !project.queue_consumers.is_empty() {
-                    bail!("The built-in Python backend currently supports fetch entrypoints; Python durable classes, workflows and queue consumers need an extension hook");
+                if project.has_workflows || !project.queue_consumers.is_empty() {
+                    bail!("Python workflows and queue consumers need an extension hook");
                 }
-                return crate::python::bundle(&root, entry, &project.metadata);
+                return crate::python::bundle(&root, entry, &project.metadata, &project.do_classes.iter().filter(|c| !is_reserved_class(c)).cloned().collect::<Vec<_>>());
             }
             if project.no_bundle {
                 // Already bundled by the caller's toolchain. Read it as it is;
@@ -1576,6 +1577,12 @@ fn read_project(path: &Path, root: &Path) -> anyhow::Result<Project> {
         }
     }
     let mut metadata = Map::new();
+    if let Some(runtime) = object.get("python_runtime") {
+        if !matches!(runtime.as_str(), Some("pyodide" | "monty")) || !main.as_deref().is_some_and(crate::python::is_python) {
+            bail!("python_runtime must be pyodide or monty and requires a .py main");
+        }
+        metadata.insert("python_runtime".into(), runtime.clone());
+    }
     if main.is_some() {
         metadata.insert("main_module".into(), json!("index.js"));
     }

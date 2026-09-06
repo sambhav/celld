@@ -1,0 +1,9 @@
+{
+  "name": "python-counter",
+  "main": "worker.py",
+  "python_runtime": "pyodide",
+  "compatibility_date": "2026-09-06",
+  "compatibility_flags": ["python_workers"],
+  "durable_objects": {"bindings": [{"name": "COUNTERS", "class_name": "Counter"}]},
+  "migrations": [{"tag": "v1", "new_sqlite_classes": ["Counter"]}]
+}

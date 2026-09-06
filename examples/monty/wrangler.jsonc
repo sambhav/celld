@@ -1,0 +1,8 @@
+{
+  "name": "monty-counter",
+  "main": "worker.py",
+  "python_runtime": "monty",
+  "compatibility_date": "2026-09-06",
+  "durable_objects": {"bindings": [{"name": "COUNTERS", "class_name": "Counter"}]},
+  "migrations": [{"tag": "v1", "new_sqlite_classes": ["Counter"]}]
+}

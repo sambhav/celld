@@ -221,7 +221,15 @@ fn package_assets(
     Ok(assets)
 }
 
-pub(crate) fn bundle(root: &Path, entry: &str, metadata: &Value) -> anyhow::Result<BundleOutput> {
+pub(crate) fn bundle(
+    root: &Path,
+    entry: &str,
+    metadata: &Value,
+    classes: &[String],
+) -> anyhow::Result<BundleOutput> {
+    if metadata["python_runtime"] == "monty" {
+        return monty_bundle(root, entry, classes);
+    }
     if !metadata["compatibility_flags"]
         .as_array()
         .is_some_and(|flags| flags.iter().any(|flag| flag == "python_workers"))
@@ -273,7 +281,45 @@ pub(crate) fn bundle(root: &Path, entry: &str, metadata: &Value) -> anyhow::Resu
     }
     // Only app sources, declarations and imports live in the app entrypoint.
     // Runtime module bytes are shared in S3; initialization remains lazy.
-    let bundle = format!("{imports}import {{createPythonWorker}} from './_python_runtime.js';\nexport default createPythonWorker({},{{assets:{{{}}}}});\n", serde_json::to_string(&manifest)?, entries.join(","));
+    let mut bundle = format!("{imports}import {{createPythonWorker, createPythonObject}} from './_python_runtime.js';\nexport default createPythonWorker({},{{assets:{{{}}}}});\n", serde_json::to_string(&manifest)?, entries.join(","));
+    for class in classes {
+        if !class
+            .chars()
+            .enumerate()
+            .all(|(i, c)| c == '_' || c.is_ascii_alphabetic() || (i > 0 && c.is_ascii_digit()))
+        {
+            bail!("invalid Python class name");
+        }
+        let entry_source = std::fs::read_to_string(root.join(entry))?;
+        let parsed =
+            ruff_python_parser::parse_module(&entry_source).map_err(|e| anyhow!(e.to_string()))?;
+        let definition = parsed
+            .syntax()
+            .body
+            .iter()
+            .find_map(|stmt| match stmt {
+                ruff_python_ast::Stmt::ClassDef(c) if c.name.as_str() == class => Some(c),
+                _ => None,
+            })
+            .with_context(|| format!("Python durable class {class} is not defined in main"))?;
+        let methods: Vec<_> = definition
+            .body
+            .iter()
+            .filter_map(|stmt| match stmt {
+                ruff_python_ast::Stmt::FunctionDef(f) if !f.name.starts_with('_') => {
+                    Some(f.name.to_string())
+                }
+                _ => None,
+            })
+            .collect();
+        let options = format!("{{assets:{{{}}}}}", entries.join(","));
+        bundle.push_str(&format!(
+            "export const {class} = createPythonObject({}, {}, {}, {options});\n",
+            serde_json::to_string(&manifest)?,
+            serde_json::to_string(class)?,
+            serde_json::to_string(&methods)?
+        ));
+    }
     Ok(BundleOutput {
         bundle: bundle.into_bytes(),
         shared,
@@ -305,4 +351,34 @@ mod tests {
         assert!(resolve_packages(&catalog, vec!["absent".into()]).is_err());
         assert!(resolve_packages(&catalog, vec!["numpy[extra]".into()]).is_err());
     }
+}
+
+fn monty_bundle(root: &Path, entry: &str, classes: &[String]) -> anyhow::Result<BundleOutput> {
+    if !requirements(root)?.is_empty() {
+        bail!("Monty cannot import third-party packages; select python_runtime: pyodide for Pydantic and WASM wheels");
+    }
+    let source = std::fs::read_to_string(root.join(entry))?;
+    if source.len() > 256 * 1024 {
+        bail!("Monty source exceeds 256 KiB");
+    }
+    let module = celld_monty::exports::Module::compile(&source).map_err(anyhow::Error::msg)?;
+    let encoded = serde_json::to_string(&source)?;
+    let mut bundle = format!("import {{createMontyWorker,createMontyObject}} from './_monty_runtime.js';\nconst source={encoded};\nexport default createMontyWorker(source,{});\n",module.manifest());
+    for class in classes {
+        let module = celld_monty::exports::Module::compile_class(&source, class)
+            .map_err(anyhow::Error::msg)?;
+        bundle.push_str(&format!(
+            "export const {class} = createMontyObject(source,{},{});\n",
+            module.manifest(),
+            serde_json::to_string(class)?
+        ));
+    }
+    Ok(BundleOutput {
+        bundle: bundle.into_bytes(),
+        shared: vec![(
+            "_monty_runtime.js".into(),
+            SharedModule::EsModule(include_bytes!("python/monty.mjs").to_vec()),
+        )],
+        ..Default::default()
+    })
 }

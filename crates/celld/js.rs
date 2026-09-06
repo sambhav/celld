@@ -4820,6 +4820,7 @@ macro_rules! ops {
 fn install_ops(scope: &mut v8::PinScope, context: v8::Local<v8::Context>) {
     let global = context.global(scope);
     ops! { scope, global,
+        "__monty" => monty_ops::op_monty,
         "__heap_limit_excessively_exceeded" =>
             op_heap_limit_excessively_exceeded,
         "__heap_over_admission_share" => op_heap_over_admission_share,
@@ -7674,6 +7675,7 @@ fn op_test_queue_rearm_bounded(
 }
 mod r2_ops;
 mod storage_ops;
+mod monty_ops;
 use storage_ops::{actor_runtime_state, throw_storage_error};
 
 /// $$urlParse(input, base?) -> {protocol,username,password,host,port,pathname,search,hash,href}
