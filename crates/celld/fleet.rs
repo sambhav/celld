@@ -745,7 +745,9 @@ async fn load_worker_at_pointer(
             .filter(|module| manifest.main_module.as_deref() != Some(module.name.as_str()))
             .map(|module| async move {
                 let key = format!("{prefix}/{}", module.name);
-                anyhow::Ok((module, get_bytes(bucket, &key).await?))
+                anyhow::Ok((module, if module.shared {
+                    crate::shared_modules::load(bucket, module).await?
+                } else { get_bytes(bucket, &key).await? }))
             }),
     )
     .await?;
@@ -753,6 +755,8 @@ async fn load_worker_at_pointer(
     for (module, bytes) in fetched {
         let entry = match module.kind {
             Some(ModuleKind::Wasm) => (module.name.clone(), ModuleSource::Wasm(bytes)),
+            Some(ModuleKind::EsModule) => (module.name.clone(), ModuleSource::EsModule(
+                String::from_utf8(bytes.into()).context("deployment ES module is not UTF-8")?)),
             None => (
                 format!("./{}", module.name),
                 ModuleSource::Text(

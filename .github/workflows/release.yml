@@ -22,6 +22,47 @@ env:
   SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
 jobs:
+  python-runtime:
+    if: >-
+      github.event_name != 'pull_request' ||
+      contains(github.event.pull_request.labels.*.name, 'build-binaries') ||
+      contains(github.event.pull_request.labels.*.name, 'release-binaries')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python tools/python-runtime/build.py out/python-runtime
+      - run: |
+          python - <<'PYTHON'
+          import gzip, hashlib, json, pathlib, tarfile
+          root = pathlib.Path('out/python-runtime')
+          digest = hashlib.sha256((root / 'runtime.json').read_bytes()).hexdigest()
+          archive = pathlib.Path('out') / f'celld-python-runtime-{digest[:12]}.tar.gz'
+          with archive.open('wb') as raw, gzip.GzipFile(fileobj=raw, mode='wb', mtime=0) as gz, tarfile.open(fileobj=gz, mode='w') as tar:
+              for path in sorted(root.iterdir()):
+                  info = tar.gettarinfo(str(path), arcname='python-runtime/' + path.name)
+                  info.uid = info.gid = info.mtime = 0
+                  info.uname = info.gname = ''
+                  with path.open('rb') as content: tar.addfile(info, content)
+          pathlib.Path('out/PYTHON_RUNTIME.json').write_text(json.dumps({
+              'archive':archive.name, 'sha256':hashlib.sha256(archive.read_bytes()).hexdigest(),
+              'manifest_sha256':digest}, indent=2) + '\n')
+          PYTHON
+      - uses: actions/upload-artifact@v4
+        with:
+          name: celld-python-runtime
+          path: |
+            out/celld-python-runtime-*.tar.gz
+            out/PYTHON_RUNTIME.json
+
   build:
     if: >-
       github.event_name != 'pull_request' ||
@@ -52,9 +93,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
       - name: Install Rust and verify native target
         run: |
           set -euo pipefail
@@ -122,7 +160,7 @@ jobs:
 
   assemble:
     name: Verify complete release assets
-    needs: build
+    needs: [build, python-runtime]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -138,7 +176,7 @@ jobs:
       - name: Verify all platforms and write checksums
         run: |
           python3 - <<'PY'
-          import gzip, hashlib, json, os, pathlib, shutil
+          import gzip, hashlib, json, os, pathlib, shutil, tarfile
           assets = pathlib.Path('assets')
           targets = {'x86_64-unknown-linux-gnu', 'aarch64-unknown-linux-gnu', 'aarch64-apple-darwin', 'x86_64-apple-darwin'}
           builds = [json.loads(p.read_text()) for p in sorted(assets.glob('build-*.json'))]
@@ -155,6 +193,18 @@ jobs:
               assert hashlib.sha256(data).hexdigest() == b['sha256']
               assert hashlib.sha256(gzip.decompress(data)).hexdigest() == b['binary_sha256']
               checksums.append(f"{b['sha256']}  {b['archive']}")
+          runtime = json.loads((assets / 'PYTHON_RUNTIME.json').read_text())
+          archive = assets / runtime['archive']
+          assert archive.name == f"celld-python-runtime-{runtime['manifest_sha256'][:12]}.tar.gz"
+          assert hashlib.sha256(archive.read_bytes()).hexdigest() == runtime['sha256']
+          with tarfile.open(archive) as tar:
+              manifest_bytes = tar.extractfile('python-runtime/runtime.json').read()
+              assert hashlib.sha256(manifest_bytes).hexdigest() == runtime['manifest_sha256']
+              for name, descriptor in json.loads(manifest_bytes)['files'].items():
+                  data = tar.extractfile('python-runtime/' + name).read()
+                  assert len(data) == descriptor['bytes']
+                  assert hashlib.sha256(data).hexdigest() == descriptor['sha256']
+          checksums.append(f"{runtime['sha256']}  {archive.name}")
           (assets / 'SHA256SUMS').write_text('\n'.join(sorted(checksums)) + '\n')
           (assets / 'BUILD_INFO.json').write_text(json.dumps(builds, indent=2) + '\n')
           shutil.copy('LICENSE', assets / 'LICENSE')

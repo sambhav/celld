@@ -1,14 +1,12 @@
 import {loadPyodide} from './pyodide.mjs';
 import createPyodideModule from './pyodide.asm.mjs';
-import {assetFetch} from './assets.js';
+import {assetFetch, registerAssets} from './assets.js';
 import {workers, dispatch} from './python-sources.js';
 import * as cloudflareWorkersModule from 'cloudflare:workers';
 import * as cloudflareSocketsModule from 'cloudflare:sockets';
 
-// The native builder replaces this one JSON string with the current sources.
-const manifest = JSON.parse('__CELLD_PYTHON_MANIFEST__');
-
-async function initialize() {
+async function initialize(manifest, assets) {
+  registerAssets(assets);
   const response = await assetFetch('https://celld-python.invalid/runtime/baseline.snapshot.gz');
   const snapshot = new Uint8Array(await new Response(response.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
   const py = await loadPyodide({_loadSnapshot:snapshot, indexURL:'https://celld-python.invalid/runtime/',
@@ -40,7 +38,7 @@ async function initialize() {
 
 // Generic runtime hooks are supplied in-process by an extension. The default
 // is the built-in Cloudflare Python backend, with one warm runtime per isolate.
-export function createPythonWorker({initializeRuntime=initialize, beforeInvoke=async()=>{}, afterInvoke=async()=>{}}={}) {
+export function createPythonWorker(manifest, {assets={}, initializeRuntime=()=>initialize(manifest, assets), beforeInvoke=async()=>{}, afterInvoke=async()=>{}}={}) {
   let boot;
   return {
     async fetch(request, env, ctx) {
@@ -55,4 +53,3 @@ export function createPythonWorker({initializeRuntime=initialize, beforeInvoke=a
     },
   };
 }
-export default createPythonWorker();

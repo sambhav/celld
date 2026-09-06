@@ -346,8 +346,9 @@ class Default(WorkerEntrypoint):
 ```
 
 Set `main` to the `.py` file and add `python_workers` to `compatibility_flags`
-in `wrangler.jsonc`, then run `celld dev` or `celld deploy`. The binary embeds
-CPython/Pyodide, the Cloudflare workers SDK and an interpreter snapshot. It never
+in `wrangler.jsonc`, then run `celld dev` or `celld deploy`. The binary includes the Python compiler and execution hooks. CPython/Pyodide,
+the Cloudflare workers SDK and interpreter snapshot are separately provisioned
+artifacts, shared by content hash in the fleet bucket. It never
 launches pycelld, Python, Node or esbuild to build a Python worker. Declared
 Pyodide packages are checked and bundled by Rust; server nodes still need only
 celld and S3. See [the example and supported scope](examples/python).

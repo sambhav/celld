@@ -18,7 +18,7 @@ use crate::protocol::{
     ModuleKind, ModuleRef, QueueConsumerAttachment, QueueConsumerConfig, QueueConsumerDeployment,
     Rollout, RunWorkerFirst, FEATURE_ASSETS_V1, FEATURE_CRON_V1, FEATURE_D1_V1, FEATURE_KV_V1,
     FEATURE_QUEUES_V1, FEATURE_R2_V1, FEATURE_SQLITE_VEC_V1, FEATURE_WASM_V1, FEATURE_WORKFLOWS_V1,
-    QUEUE_CONSUMER_ATTACHMENT_SCHEMA_VERSION,
+    QUEUE_CONSUMER_ATTACHMENT_SCHEMA_VERSION, FEATURE_SHARED_MODULES_V1,
 };
 use anyhow::{anyhow, bail, Context};
 use flate2::write::GzEncoder;
@@ -471,6 +471,7 @@ pub fn build_with_hooks(options: &Options, hooks: &dyn crate::build_hooks::Build
                     .map(|bundle| BundleOutput {
                         bundle,
                         wasm: Vec::new(),
+                        ..Default::default()
                     })
             } else {
                 run_esbuild(&root, entry)
@@ -491,15 +492,33 @@ pub fn build_with_hooks(options: &Options, hooks: &dyn crate::build_hooks::Build
     // esbuild emits one JS module plus a copy of every wasm file the bundle
     // imports; the copies ship as sibling modules.
     let module_name = "index.js".to_string();
-    let (mut modules, wasm_modules) = match bundle {
-        Some(output) => (vec![(module_name.clone(), output.bundle)], output.wasm),
-        None => (Vec::new(), Vec::new()),
+    let (mut modules, wasm_modules, shared_modules) = match bundle {
+        Some(output) => (vec![(module_name.clone(), output.bundle)], output.wasm, output.shared),
+        None => (Vec::new(), Vec::new(), Vec::new()),
     };
-    let wasm_names: BTreeSet<String> = wasm_modules.iter().map(|(name, _)| name.clone()).collect();
+    let mut wasm_names: BTreeSet<String> = wasm_modules.iter().map(|(name, _)| name.clone()).collect();
     modules.extend(wasm_modules);
-    // Identity is over the exact metadata bytes the manifest retains, so the
-    // serialization happens once and is reused for both.
-    let metadata_json = serde_json::to_vec(&project.metadata)?;
+    let mut shared_kinds = BTreeMap::new();
+    for (name, source) in shared_modules {
+        use crate::build_hooks::SharedModule;
+        let (kind, bytes) = match source {
+            SharedModule::EsModule(bytes) => (Some(ModuleKind::EsModule), bytes),
+            SharedModule::Text(bytes) => (None, bytes),
+            SharedModule::Wasm(bytes) => { wasm_names.insert(name.clone()); (Some(ModuleKind::Wasm), bytes) },
+        };
+        if name.is_empty() || name.contains(['/', '\\']) || name == "." || name == ".." || modules.iter().any(|(existing, _)| existing == &name) {
+            bail!("Invalid or duplicate shared module name: {name:?}");
+        }
+        shared_kinds.insert(name.clone(), kind);
+        modules.push((name, bytes));
+    }
+    // Include module interpretation in new deployment identities. Preserve
+    // the established identity format for deployments without shared modules.
+    let metadata_json = if shared_kinds.is_empty() {
+        serde_json::to_vec(&project.metadata)?
+    } else {
+        serde_json::to_vec(&json!({"metadata":project.metadata,"shared_modules":shared_kinds}))?
+    };
     let version = crate::protocol::deployment_version(
         &modules,
         &metadata_json,
@@ -530,8 +549,9 @@ pub fn build_with_hooks(options: &Options, hooks: &dyn crate::build_hooks::Build
             .map(|(name, bytes)| ModuleRef {
                 name: name.clone(),
                 bytes: bytes.len(),
-                sha256: format!("{:x}", Sha256::digest(bytes))[..16].to_string(),
-                kind: wasm_names.contains(name).then_some(ModuleKind::Wasm),
+                sha256: if shared_kinds.contains_key(name) { format!("{:x}", Sha256::digest(bytes)) } else { format!("{:x}", Sha256::digest(bytes))[..16].to_string() },
+                kind: shared_kinds.get(name).copied().unwrap_or_else(|| wasm_names.contains(name).then_some(ModuleKind::Wasm)),
+                shared: shared_kinds.contains_key(name),
             })
             .collect(),
         assets: asset_reference,
@@ -565,6 +585,9 @@ pub fn build_with_hooks(options: &Options, hooks: &dyn crate::build_hooks::Build
             }
             if sqlite_vec {
                 features.push(FEATURE_SQLITE_VEC_V1.to_string());
+            }
+            if !shared_kinds.is_empty() {
+                features.push(FEATURE_SHARED_MODULES_V1.to_string());
             }
             if !wasm_names.is_empty() {
                 features.push(FEATURE_WASM_V1.to_string());
@@ -601,9 +624,13 @@ pub async fn write(bucket: &Bucket, built: &Built) -> anyhow::Result<()> {
             .await?;
     }
     for (name, bytes) in &built.modules {
-        bucket
-            .put(&format!("{}/{name}", built.prefix), bytes.clone())
-            .await?;
+        let module = built.manifest.modules.iter().find(|module| &module.name == name)
+            .context("Built module missing from manifest")?;
+        if module.shared {
+            crate::shared_modules::publish(bucket, module, bytes).await?;
+        } else {
+            bucket.put(&format!("{}/{name}", built.prefix), bytes.clone()).await?;
+        }
     }
     if let Some(assets) = &built.assets {
         bucket
@@ -2206,7 +2233,7 @@ fn run_esbuild(root: &Path, entry: &str) -> anyhow::Result<BundleOutput> {
     // read_dir order is platform-defined; the deployment version hashes the
     // module list, so keep it stable.
     wasm.sort();
-    Ok(BundleOutput { bundle, wasm })
+    Ok(BundleOutput { bundle, wasm, ..Default::default() })
 }
 
 /// Minimal JSONC support: line and block comments, and trailing commas.

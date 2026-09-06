@@ -20,6 +20,7 @@ impl BuildHooks for Compiler {
         Ok(Some(BundleOutput {
             bundle: b"export default {fetch(){return new Response('hook')}};".to_vec(),
             wasm: vec![],
+            ..Default::default()
         }))
     }
     fn finish(&self, output: &mut BundleOutput) -> anyhow::Result<()> {
@@ -42,7 +43,7 @@ fn registered_compiler_and_transform_run_before_hashing() {
     assert!(first.modules[0].1.ends_with(b"// transformed"));
 }
 #[test]
-fn default_python_compiler_is_embedded_and_rejects_bad_syntax() {
+fn default_python_compiler_uses_shared_artifacts_and_rejects_bad_syntax() {
     let root = tempfile::tempdir().unwrap();
     let entry = root.path().join("worker.py");
     std::fs::write(&entry, "from workers import WorkerEntrypoint, Response\nclass Default(WorkerEntrypoint):\n async def fetch(self, request):\n  return Response('hello')\n").unwrap();
@@ -58,6 +59,34 @@ fn default_python_compiler_is_embedded_and_rejects_bad_syntax() {
         .iter()
         .any(|(name, bytes)| name.ends_with(".wasm") && bytes.starts_with(b"\0asm")));
     assert!(!String::from_utf8_lossy(&built.modules[0].1).contains("__CELLD_PYTHON_MANIFEST__"));
+    assert!(
+        built.modules[0].1.len() < 4096,
+        "hello world entry must not contain runtime bytes"
+    );
+    assert!(built
+        .manifest
+        .required_features
+        .iter()
+        .any(|feature| feature == "shared-modules-v1"));
+    let shared = |built: &celld::deploy::Built| {
+        built
+            .manifest
+            .modules
+            .iter()
+            .filter(|module| module.shared)
+            .map(|module| (module.name.clone(), module.sha256.clone()))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(shared(&built).len(), 4);
+    let code = std::fs::read_to_string(&entry).unwrap();
+    std::fs::write(&entry, code.replace("hello", "updated")).unwrap();
+    let updated = build(&options(config.clone())).unwrap();
+    assert_ne!(built.version, updated.version);
+    assert_eq!(
+        shared(&built),
+        shared(&updated),
+        "source edits must reuse exact runtime hashes"
+    );
     std::fs::write(entry, "invalid Python!\n").unwrap();
     assert!(build(&options(config))
         .err()

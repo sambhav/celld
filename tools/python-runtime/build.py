@@ -1,4 +1,4 @@
-"""Prepare binary-embedded Python assets during celld's source build only.
+"""Build a separately distributed, versioned Python runtime artifact.
 
 Never runs during celld dev/deploy/serve. Uses no pycelld installation.
 Runtime bytes are pinned by SHA-256, the esbuild version is pinned as well.
@@ -65,22 +65,30 @@ with tempfile.TemporaryDirectory(dir=cache) as temporary:
     snapshot = cache / 'baseline.snapshot.gz'
     snapshot_key = hashlib.sha256((SOURCE / 'snapshot.mjs').read_bytes() + json.dumps(LOCK,sort_keys=True).encode()).hexdigest()
     key_file = snapshot.with_suffix('.key')
-    if not snapshot.exists() or not key_file.exists() or key_file.read_text() != snapshot_key:
+    expected_snapshot = json.loads(key_file.read_text()) if key_file.exists() and key_file.read_text().startswith('{') else {}
+    if not snapshot.exists() or expected_snapshot.get('source') != snapshot_key or expected_snapshot.get('sha256') != hashlib.sha256(snapshot.read_bytes()).hexdigest():
         subprocess.run(['node', str(SOURCE / 'snapshot.mjs'), str(runtime), str(snapshot)], check=True)
-        key_file.write_text(snapshot_key)
-    assets = {'/runtime/python_stdlib.zip':base64.b64encode((runtime / 'python_stdlib.zip').read_bytes()).decode(),
-        '/runtime/baseline.snapshot.gz':base64.b64encode(snapshot.read_bytes()).decode()}
-    # The Rust builder appends the declared, checksum-verified wheel assets.
-    (stage / 'asset-data.js').write_text('export const assets={...'+json.dumps(assets)+',...JSON.parse("__CELLD_PYTHON_PACKAGES__")};\n')
+        key_file.write_text(json.dumps({'source':snapshot_key,'sha256':hashlib.sha256(snapshot.read_bytes()).hexdigest()}))
+    # Data stays in separate text modules, shared by content hash across apps.
+    (stage / 'asset-data.js').write_text("import stdlib from './python-stdlib.b64';\nimport snapshot from './python-snapshot.b64';\nexport const assets={'/runtime/python_stdlib.zip':stdlib, '/runtime/baseline.snapshot.gz':snapshot};\n")
     workers = {p.relative_to(SOURCE).as_posix():p.read_text() for p in sorted((SOURCE / 'workers').glob('*.py'))}
     (stage / 'python-sources.js').write_text('export const workers='+json.dumps(workers)+';\nexport const dispatch='+json.dumps((SOURCE / 'dispatch.py').read_text())+';\n')
     subprocess.run([str(node / 'node_modules/.bin/esbuild'),str(stage / 'host.js'),'--bundle','--format=esm','--platform=browser',
-        '--target=es2024','--external:node:*','--external:cloudflare:*','--loader:.wasm=copy','--asset-names=[name]',
+        '--target=es2024','--external:*.b64','--external:node:*','--external:cloudflare:*','--loader:.wasm=copy','--asset-names=[name]',
         '--outfile='+str(stage / 'out/bundle.js')], check=True)
-    for source, destination in [(stage / 'out/bundle.js', 'runtime.js.gz'), (stage / 'pyodide.asm.wasm', 'core.wasm.gz'),
-                                (runtime / 'pyodide-lock.json', 'catalog.json.gz')]:
-        content = source.read_bytes()
-        if destination == 'runtime.js.gz':
-            notices = '\n'.join(p.read_text() for p in sorted((SOURCE / 'licenses').glob('*.txt')))
-            content = ('/*!\n' + notices.replace('*/', '* /') + '\n*/\n').encode() + content
-        (OUT / destination).write_bytes(gzip.compress(content, mtime=0))
+    notices = '\n'.join(p.read_text() for p in sorted((SOURCE / 'licenses').glob('*.txt')))
+    files = {
+        '_python_runtime.js': ('esmodule', ('/*!\n' + notices.replace('*/', '* /') + '\n*/\n').encode() + (stage / 'out/bundle.js').read_bytes()),
+        'pyodide.asm.wasm': ('wasm', (stage / 'pyodide.asm.wasm').read_bytes()),
+        'python-stdlib.b64': (None, base64.b64encode((runtime / 'python_stdlib.zip').read_bytes())),
+        'python-snapshot.b64': (None, base64.b64encode(snapshot.read_bytes())),
+        'catalog.json': (None, (runtime / 'pyodide-lock.json').read_bytes()),
+    }
+    manifest = {'schema_version': 1, 'abi': 'celld-python-v1', 'pyodide': LOCK['pyodide'], 'workers_sdk': LOCK['workers_sdk'], 'files': {}}
+    for name, (kind, data) in files.items():
+        (OUT / name).write_bytes(data)
+        manifest['files'][name] = {'bytes':len(data), 'sha256':hashlib.sha256(data).hexdigest(), 'kind':kind}
+    manifest_bytes = (json.dumps(manifest, sort_keys=True, indent=2) + '\n').encode()
+    (OUT / 'runtime.json').write_bytes(manifest_bytes)
+    (OUT / 'runtime.sha256').write_text(hashlib.sha256(manifest_bytes).hexdigest() + '\n')
+    print('Python runtime artifact: ' + str(OUT) + ' (' + hashlib.sha256(manifest_bytes).hexdigest() + ')')

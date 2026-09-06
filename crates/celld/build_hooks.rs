@@ -9,10 +9,19 @@ pub struct BuildRequest<'a> {
     pub entrypoint: &'a str,
 }
 
-/// A bundled ES module and its statically imported compiled-WASM siblings.
+/// App entrypoint, deployment-local WASM and immutable fleet-shared modules.
+#[derive(Default)]
 pub struct BundleOutput {
     pub bundle: Vec<u8>,
     pub wasm: Vec<(String, Vec<u8>)>,
+    pub shared: Vec<(String, SharedModule)>,
+}
+
+/// A shared module is addressed by its full content hash in the fleet bucket.
+pub enum SharedModule {
+    EsModule(Vec<u8>),
+    Text(Vec<u8>),
+    Wasm(Vec<u8>),
 }
 
 pub trait BuildHooks: Send + Sync {
@@ -50,6 +59,7 @@ mod tests {
         let mut output = BundleOutput {
             bundle: b"module".to_vec(),
             wasm: vec![("core.wasm".into(), vec![0, 97, 115, 109])],
+            ..Default::default()
         };
         hooks.finish(&mut output).unwrap();
         assert_eq!(output.bundle, b"module");

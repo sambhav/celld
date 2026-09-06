@@ -328,6 +328,8 @@ pub mod dead_node_gc;
 pub mod deploy;
 pub mod build_hooks;
 mod python;
+mod python_artifacts;
+mod shared_modules;
 pub mod dev;
 pub mod drain_token;
 pub mod env_vars;

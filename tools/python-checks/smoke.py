@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import shutil
 import socket
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -25,7 +26,9 @@ with tempfile.TemporaryDirectory(prefix='celld python ') as directory:
         sock.bind(('127.0.0.1', 0))
         port = sock.getsockname()[1]
     env = {key:value for key,value in os.environ.items() if not key.startswith('CELLD_')}
-    env.update(PATH=str(traps)+os.pathsep+env['PATH'], CELLD_MAX_STATELESS_ISOLATES='1', CELLD_V8_HEAP_LIMIT_MB='256')
+    env.update(PATH=str(traps)+os.pathsep+env['PATH'], CELLD_MAX_STATELESS_ISOLATES='1', CELLD_V8_HEAP_LIMIT_MB='256', CELLD_MODULE_CACHE=str(Path(directory) / 'module-cache'))
+    if os.environ.get('CELLD_PYTHON_RUNTIME'):
+        env['CELLD_PYTHON_RUNTIME'] = os.environ['CELLD_PYTHON_RUNTIME']
     log_path = Path(directory) / 'dev.log'
     with log_path.open('w') as log:
         process = subprocess.Popen([binary,'dev',str(root),'--port',str(port)], env=env, stdout=log, stderr=log)
@@ -50,10 +53,16 @@ with tempfile.TemporaryDirectory(prefix='celld python ') as directory:
             raise AssertionError(log_path.read_text())
         try:
             wait_for('Hello, Cloudflare Python!')
+            def shared_objects():
+                with sqlite3.connect(root / '.celld/dev/objects.sqlite3') as db:
+                    return db.execute("select key, etag, length(body) from objects where key like 'modules/sha256/%' order by key").fetchall()
+            first_artifacts = shared_objects()
+            assert len(first_artifacts) == 4, first_artifacts
             source = root / 'src/worker.py'
             code = source.read_text()
             source.write_text(code.replace('Hello,', 'Welcome,'))
             wait_for('Welcome, Cloudflare Python!')
+            assert shared_objects() == first_artifacts, 'source edit uploaded runtime artifacts again'
             source.write_text('syntax error!\n')
             deadline = time.monotonic() + 60
             while 'Python syntax error' not in log_path.read_text():
@@ -80,8 +89,9 @@ class Default(WorkerEntrypoint):
         return Response.from_json({"mean": float(np.mean(data.values)), "greeting": self.env.GREETING})
 ''')
             wait_for({'mean':3.0,'greeting':'Cloudflare Python'}, {'values':[1,2,6]})
+            assert len(shared_objects()) > len(first_artifacts), 'declared wheels must be separate shared modules'
             assert not marker.exists(), 'celld invoked an external language tool'
-            print('Built-in Cloudflare Python, env, JSON, Pydantic, NumPy, reload, invalid-edit recovery, no external CLI: PASS')
+            print('Built-in Cloudflare Python, env, JSON, Pydantic, NumPy, reload, invalid-edit recovery, shared runtime/wheel reuse, no external CLI: PASS')
         finally:
             process.terminate()
             try:

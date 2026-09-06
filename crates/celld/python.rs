@@ -1,29 +1,17 @@
-//! Built-in Cloudflare Python worker compiler. Runtime assets are embedded in
-//! the binary; deployment and request handling never invoke a language CLI.
-use crate::build_hooks::BundleOutput;
+//! Built-in Cloudflare Python compiler with separately provisioned artifacts.
+use crate::build_hooks::{BundleOutput, SharedModule};
 use anyhow::{anyhow, bail, Context};
 use base64::Engine as _;
-use flate2::read::GzDecoder;
 use pep508_rs::{MarkerEnvironment, MarkerEnvironmentBuilder, Requirement, VersionOrUrl};
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, VecDeque};
-use std::io::Read;
 use std::path::Path;
 
-const RUNTIME: &[u8] = include_bytes!(concat!(env!("CELLD_PYTHON_RUNTIME"), "/runtime.js.gz"));
-const CORE: &[u8] = include_bytes!(concat!(env!("CELLD_PYTHON_RUNTIME"), "/core.wasm.gz"));
-const CATALOG: &[u8] = include_bytes!(concat!(env!("CELLD_PYTHON_RUNTIME"), "/catalog.json.gz"));
 const PYODIDE: &str = "314.0.6";
 
 pub(crate) fn is_python(entry: &str) -> bool {
     Path::new(entry).extension().is_some_and(|ext| ext == "py")
-}
-
-fn inflate(bytes: &[u8]) -> anyhow::Result<Vec<u8>> {
-    let mut output = Vec::new();
-    GzDecoder::new(bytes).read_to_end(&mut output)?;
-    Ok(output)
 }
 
 fn sources(
@@ -85,6 +73,26 @@ fn requirements(root: &Path) -> anyhow::Result<Vec<String>> {
         return Ok(Vec::new());
     }
     let project: toml::Value = toml::from_str(&std::fs::read_to_string(path)?)?;
+    if project
+        .get("tool")
+        .and_then(|v| v.get("celld"))
+        .and_then(|v| v.get("wheels"))
+        .is_some()
+    {
+        bail!("Custom Python wheels require a compiler extension");
+    }
+    if project
+        .get("project")
+        .and_then(|v| v.get("dynamic"))
+        .and_then(toml::Value::as_array)
+        .is_some_and(|values| {
+            values
+                .iter()
+                .any(|value| value.as_str() == Some("dependencies"))
+        })
+    {
+        bail!("Dynamic Python dependencies require a compiler extension");
+    }
     let Some(requirements) = project.get("project").and_then(|v| v.get("dependencies")) else {
         return Ok(Vec::new());
     };
@@ -192,28 +200,7 @@ fn package_assets(
             std::fs::read(&path)?
         } else {
             let url = format!("https://cdn.jsdelivr.net/pyodide/v{PYODIDE}/full/{file_name}");
-            // build() may run inside celld's async CLI. This dedicated thread
-            // owns its downloader runtime; no nested runtime or shell process.
-            let bytes = std::thread::spawn(move || -> anyhow::Result<Vec<u8>> {
-                let runtime = tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()?;
-                runtime.block_on(async {
-                    let client = reqwest::Client::builder()
-                        .timeout(std::time::Duration::from_secs(60))
-                        .build()?;
-                    Ok(client
-                        .get(url)
-                        .send()
-                        .await?
-                        .error_for_status()?
-                        .bytes()
-                        .await?
-                        .to_vec())
-                })
-            })
-            .join()
-            .map_err(|_| anyhow!("Python package downloader panicked"))??;
+            let bytes = crate::python_artifacts::download(url)?;
             if format!("{:x}", Sha256::digest(&bytes)) != expected {
                 bail!("Python package checksum mismatch: {name}");
             }
@@ -232,18 +219,6 @@ fn package_assets(
         );
     }
     Ok(assets)
-}
-
-fn replace_json(template: &mut String, marker: &str, value: &Value) -> anyhow::Result<()> {
-    let needle = serde_json::to_string(marker)?;
-    if template.matches(&needle).count() != 1 {
-        bail!("Embedded Python template marker mismatch: {marker}");
-    }
-    *template = template.replace(
-        &needle,
-        &serde_json::to_string(&serde_json::to_string(value)?)?,
-    );
-    Ok(())
 }
 
 pub(crate) fn bundle(root: &Path, entry: &str, metadata: &Value) -> anyhow::Result<BundleOutput> {
@@ -269,20 +244,40 @@ pub(crate) fn bundle(root: &Path, entry: &str, metadata: &Value) -> anyhow::Resu
     }
     let mut code = BTreeMap::new();
     sources(source_root, source_root, &mut code)?;
-    let catalog: Value = serde_json::from_slice(&inflate(CATALOG)?)?;
+    let mut artifacts = crate::python_artifacts::load(root)?;
+    let catalog: Value = serde_json::from_slice(&artifacts.remove("catalog.json").unwrap())?;
     let packages = resolve_packages(&catalog, requirements(root)?)?;
     let assets = package_assets(root, &packages)?;
     let manifest = json!({"entrypoint":module,"sources":code,"lock":{"info":catalog["info"],"packages":packages}});
-    let mut template = String::from_utf8(inflate(RUNTIME)?)?;
-    replace_json(&mut template, "__CELLD_PYTHON_MANIFEST__", &manifest)?;
-    replace_json(
-        &mut template,
-        "__CELLD_PYTHON_PACKAGES__",
-        &Value::Object(assets),
-    )?;
+    let mut shared = Vec::new();
+    for (name, bytes) in artifacts {
+        let source = match name.as_str() {
+            "_python_runtime.js" => SharedModule::EsModule(bytes),
+            "pyodide.asm.wasm" => SharedModule::Wasm(bytes),
+            _ => SharedModule::Text(bytes),
+        };
+        shared.push((name, source));
+    }
+    let mut imports = String::new();
+    let mut entries = Vec::new();
+    for (i, (path, data)) in assets.into_iter().enumerate() {
+        let bytes = data
+            .as_str()
+            .context("Python package asset")?
+            .as_bytes()
+            .to_vec();
+        let name = format!("python-{}.b64", crate::python_artifacts::digest(&bytes));
+        imports.push_str(&format!("import package{i} from './{name}';\n"));
+        entries.push(format!("{}:package{i}", serde_json::to_string(&path)?));
+        shared.push((name, SharedModule::Text(bytes)));
+    }
+    // Only app sources, declarations and imports live in the app entrypoint.
+    // Runtime module bytes are shared in S3; initialization remains lazy.
+    let bundle = format!("{imports}import {{createPythonWorker}} from './_python_runtime.js';\nexport default createPythonWorker({},{{assets:{{{}}}}});\n", serde_json::to_string(&manifest)?, entries.join(","));
     Ok(BundleOutput {
-        bundle: template.into_bytes(),
-        wasm: vec![("pyodide.asm.wasm".into(), inflate(CORE)?)],
+        bundle: bundle.into_bytes(),
+        shared,
+        ..Default::default()
     })
 }
 
@@ -309,12 +304,5 @@ mod tests {
         assert!(resolve_packages(&catalog, vec!["numpy<2".into()]).is_err());
         assert!(resolve_packages(&catalog, vec!["absent".into()]).is_err());
         assert!(resolve_packages(&catalog, vec!["numpy[extra]".into()]).is_err());
-    }
-    #[test]
-    fn template_replacement_preserves_source_quotes_and_unicode() {
-        let mut source = "const value=JSON.parse(\"MARKER\");".to_string();
-        replace_json(&mut source, "MARKER", &json!({"code":"hello \"世界\"\n"})).unwrap();
-        assert!(!source.contains("MARKER"));
-        assert!(replace_json(&mut source, "MARKER", &json!({})).is_err());
     }
 }

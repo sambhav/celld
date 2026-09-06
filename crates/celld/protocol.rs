@@ -60,6 +60,7 @@ pub const SUPPORTED_DEPLOYMENT_FEATURES: &[&str] = &[
     FEATURE_SQLITE_VEC_V1,
     FEATURE_R2_V1,
     FEATURE_WASM_V1,
+    FEATURE_SHARED_MODULES_V1,
     FEATURE_WORKFLOWS_V1,
 ];
 
@@ -80,6 +81,7 @@ pub const FEATURE_CRON_V1: &str = "cron-v1";
 pub const FEATURE_R2_V1: &str = "r2-v1";
 pub const FEATURE_SQLITE_VEC_V1: &str = "sqlite-vec-v1";
 pub const FEATURE_WASM_V1: &str = "wasm-v1";
+pub const FEATURE_SHARED_MODULES_V1: &str = "shared-modules-v1";
 /// A deployment with `workflows` bindings. Required because a build without
 /// the reserved workflow cell would load the manifest, build an `env` missing
 /// the binding, and fail only when the application first calls `create()` —
@@ -306,19 +308,23 @@ pub fn validate_required_features(required: &[String]) -> anyhow::Result<()> {
 pub struct ModuleRef {
     pub name: String,
     pub bytes: usize,
-    /// content hash of this module's bytes (hex, truncated)
+    /// Content hash; full SHA-256 for shared modules, legacy truncated hex otherwise.
     pub sha256: String,
     /// Absent means UTF-8 source: the main module is ESM, siblings become
     /// text modules. `wasm` bytes become a module whose default export is a
     /// compiled `WebAssembly.Module` (Wrangler's `CompiledWasm` rule).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kind: Option<ModuleKind>,
+    /// Resolve from modules/sha256/<sha256> instead of the deployment prefix.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub shared: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ModuleKind {
     Wasm,
+    EsModule,
 }
 
 /// Reference from a deploy manifest to its immutable, canonical asset index.

@@ -1,12 +1,19 @@
 import { assets } from './asset-data.js';
 
+export function registerAssets(extra) {
+  for (const [name, data] of Object.entries(extra)) {
+    if (assets[name] !== undefined && assets[name] !== data) throw new Error(`Conflicting runtime asset: ${name}`);
+    assets[name] = data;
+  }
+}
+
 // Lexically scoped to the Pyodide loader. Never patches global fetch, and
 // never falls back to a CDN/PyPI: missing declared artifacts fail closed.
 export async function assetFetch(input) {
   const url = new URL(typeof input === 'string' ? input : input.url ?? String(input));
-  if (url.origin !== 'https://celld-python.invalid') throw new Error(`Unbundled runtime URL: ${url}`);
+  if (url.origin !== 'https://celld-python.invalid') throw new Error(`Missing declared runtime URL: ${url}`);
   const data = assets[url.pathname];
-  if (data === undefined) throw new Error(`Unbundled runtime asset: ${url.pathname}`);
+  if (data === undefined) throw new Error(`Missing declared runtime asset: ${url.pathname}`);
   let bytes;
   if (typeof Uint8Array.fromBase64 === 'function') {
     bytes = Uint8Array.fromBase64(data);

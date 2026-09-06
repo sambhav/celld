@@ -31,14 +31,18 @@ jobs:
           restore-keys: |
             python-native-${{ hashFiles('Cargo.lock') }}-
             fork-native-x86_64-unknown-linux-gnu-1.98.1-${{ hashFiles('Cargo.lock') }}-
+      - run: python tools/python-runtime/build.py target/lab/python-runtime
       - run: |
           cargo test --manifest-path tools/packing-checks/Cargo.toml --locked
           cargo build -p celld --profile lab --locked
       - run: |
           cargo test -p celld --profile lab --lib python::tests --locked
+          cargo test -p celld --profile lab --lib shared_modules::tests --locked
           cargo test -p celld --profile lab --test build_hooks --locked
       - run: python tools/python-checks/smoke.py target/lab/celld
       - uses: actions/upload-artifact@v4
         with:
           name: python-native
-          path: target/lab/celld
+          path: |
+            target/lab/celld
+            target/lab/python-runtime/*

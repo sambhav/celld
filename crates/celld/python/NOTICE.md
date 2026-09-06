@@ -1,4 +1,4 @@
-# Embedded Python runtime provenance
+# Python runtime artifact provenance
 
 - Pyodide 314.0.6, official npm distribution, including CPython 3.14.2.
   Exact asset checksums: `tools/python-runtime/runtime-lock.json`.
@@ -11,6 +11,6 @@
 - Snapshot creation uses Pyodide's upstream API. It includes interpreter/stdlib
   state only. User sources and third-party packages load after restore.
 
-Binary-build preparation is distinct from deployment: the build script uses
-Python/Node/npm to assemble the assets; the resulting celld binary bundles
-workers in Rust and serves them through its V8/WASM runtime.
+The separate artifact builder uses Python/Node/npm to assemble the runtime.
+The native binary compiles application projects in Rust and serves their
+referenced runtime modules through V8/WASM, without those build tools.
