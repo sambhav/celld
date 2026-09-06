@@ -41,6 +41,7 @@ jobs:
           npm install -g esbuild@0.25.12
           cargo fmt --manifest-path tools/monty-bench/Cargo.toml --check
           cargo build --release --locked --manifest-path tools/monty-bench/Cargo.toml
+          cargo test --release --locked --manifest-path tools/monty-bench/Cargo.toml
           python tools/python-runtime/build.py candidate-runtime
       - name: Interpreter probes and costs
         run: |

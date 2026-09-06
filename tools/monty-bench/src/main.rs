@@ -357,3 +357,6 @@ fn main() {
         axum::serve(listener, router).await.unwrap();
     });
 }
+
+#[cfg(test)]
+mod tests;

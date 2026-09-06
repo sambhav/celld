@@ -14,7 +14,6 @@ from .utils import (
     RESPONSE_ACCEPTED_TYPES,
     _get_js_body,
     _get_js_constructor_name,
-    _is_js_instance,
     _js_headers_to_http_message,
     _jsnull_to_none,
     _to_js_headers,
@@ -98,7 +97,13 @@ class FetchResponse(pyodide.http.FetchResponse):
         status_text="",
         headers: Headers = None,
     ) -> "Response":
-        if _native_json_response is not None and status == 200 and status_text == "" and headers is None and not isinstance(data, JsProxy):
+        if (
+            _native_json_response is not None
+            and status == 200
+            and status_text == ""
+            and headers is None
+            and not isinstance(data, JsProxy)
+        ):
             try:
                 js_resp = _native_json_response(json.dumps(data))
             except JsException as exc:
@@ -139,7 +144,7 @@ class Response(FetchResponse):
     @staticmethod
     def _from_fresh_native(js_response):
         # Response.from_json just constructed this object. Its URL is empty;
-        # no type probes or second JS Request allocation are needed.
+        # no additional JS type or URL probes are needed.
         result = object.__new__(Response)
         FetchResponse.__init__(result, "", js_response)
         return result
