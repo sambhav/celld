@@ -30,21 +30,21 @@ try:
         project = out / workload
         project.mkdir()
         shutil.copyfile(HERE/'worker.py', project/'app.py')
-        (project/'worker.py').write_text('''import cProfile, pstats
+        (project/'worker.py').write_text('''import profile, pstats, sys
 from app import Default as Application
 from workers import Response
-profile = cProfile.Profile()
+profiler = profile.Profile()
 class Default(Application):
     async def fetch(self, request):
         if request.method == 'GET':
-            profile.disable()
-            stats = pstats.Stats(profile)
+            sys.setprofile(None)
+            stats = pstats.Stats(profiler)
             rows = []
             for (file, line, name), (primitive, calls, own, total, callers) in stats.stats.items():
                 rows.append(dict(file=file, line=line, name=name, calls=calls, self_seconds=own, total_seconds=total))
-            profile.clear()
+            profiler.__init__()
             return Response.from_json(sorted(rows, key=lambda row: row['self_seconds'], reverse=True)[:50])
-        profile.enable()
+        sys.setprofile(profiler.dispatcher)
         return await super().fetch(request)
 ''')
         config = dict(name='python-profile', main='worker.py', compatibility_date='2026-09-05',
@@ -67,5 +67,11 @@ class Default(Application):
             reports.append(dict(workload=workload, requests=measured['requests'], rows=rows))
             print('PYTHON_PROFILE='+json.dumps(reports[-1]), flush=True)
     (out/'profiles.json').write_text(json.dumps(reports, indent=2)+'\n')
+except BaseException as error:
+    if isinstance(error, subprocess.CalledProcessError):
+        print(error.stdout, error.stderr, flush=True)
+    for log in out.glob('*.log'):
+        print(log.name, log.read_text()[-8000:], flush=True)
+    raise
 finally:
     stop(upstream)
