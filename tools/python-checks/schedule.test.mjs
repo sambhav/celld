@@ -17,7 +17,7 @@ test('ready callbacks are deferred, FIFO, once each; positive delays remain time
   assert.deepEqual(seen, [1,2,3]);
 });
 
-test('a chain of immediately ready work yields after its finite budget', () => {
+test('a chain of immediately ready work yields after its finite budget', async () => {
   const microtasks = [], timers = [];
   const schedule = createScheduler({budget:4, microtask:f => microtasks.push(f), timer:f => timers.push(f)});
   let count = 0;
@@ -27,9 +27,23 @@ test('a chain of immediately ready work yields after its finite budget', () => {
   assert.equal(count, 4);
   assert.equal(timers.length, 1);
   timers.shift()();
+  await Promise.resolve();
   while (microtasks.length) microtasks.shift()();
-  assert.equal(count, 9);
+  assert.equal(count, 8);
   assert.equal(timers.length, 1);
+});
+
+test('ready callbacks preserve FIFO across the yield boundary', async () => {
+  const schedule = createScheduler({budget:2});
+  const seen = [];
+  await new Promise(resolve => {
+    schedule(() => seen.push(1));
+    schedule(() => seen.push(2));
+    schedule(() => {seen.push(3); schedule(() => {seen.push(6); resolve();});});
+    schedule(() => seen.push(4));
+    schedule(() => seen.push(5));
+  });
+  assert.deepEqual(seen, [1,2,3,4,5,6]);
 });
 
 test('overlapping callbacks retain their request async context on both paths', async () => {

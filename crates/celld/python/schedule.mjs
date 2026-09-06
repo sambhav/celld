@@ -6,17 +6,24 @@
 export function createScheduler({microtask=queueMicrotask, timer=setTimeout, budget=64}={}) {
   if (!Number.isSafeInteger(budget) || budget < 1) throw new RangeError('Invalid scheduler budget');
   let remaining = budget;
-  return (callback, delay=0) => {
+  let gate;
+  function schedule(callback, delay=0) {
     if (delay > 0) return timer(callback, delay);
+    // Once we yield, later ready callbacks must join the same gate. Otherwise
+    // work scheduled by the first timer can overtake already queued callbacks.
+    if (gate) return gate.then(() => schedule(callback));
     if (remaining > 0) {
       remaining--;
       return microtask(callback);
     }
-    return timer(() => {
+    gate = new Promise(resolve => timer(() => {
       remaining = budget;
-      callback();
-    }, 0);
-  };
+      gate = undefined;
+      resolve();
+    }, 0));
+    return gate.then(() => schedule(callback));
+  }
+  return schedule;
 }
 
 export const schedulePythonCallback = createScheduler();
