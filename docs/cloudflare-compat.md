@@ -31,7 +31,23 @@ identifies each known exception.
 | [Hyperdrive](https://developers.cloudflare.com/hyperdrive/) | **No** |
 | [Browser Rendering](https://developers.cloudflare.com/browser-rendering/) | **No** |
 | [Email Workers](https://developers.cloudflare.com/email-routing/email-workers/) | **No** |
-| [Python Workers](https://developers.cloudflare.com/workers/languages/python/) | **No** |
+| [Python Workers](https://developers.cloudflare.com/workers/languages/python/) | **Partial** |
+
+### [Python Workers](https://developers.cloudflare.com/workers/languages/python/)
+
+**Partial** (fork)
+
+- Supports `Default(WorkerEntrypoint).fetch`, web request/response helpers,
+  environment bindings, and declared packages from the pinned Pyodide catalog.
+- Python Durable Object classes, Workflow and queue entrypoints need further
+  integration. Custom wheels, extras, URL requirements and dynamic package
+  installation are not part of the built-in backend.
+- Uses separately provisioned CPython/WASM runtime artifacts. Ready asyncio
+  callbacks use request-local microtask scheduling with periodic host yields.
+- Accepts Wrangler project configuration through `celld dev/deploy`; does not
+  implement Wrangler CLI's Cloudflare upload/control-plane protocol.
+- See the [Python example](../examples/python) for configuration and runtime
+  provisioning, and [benchmarks](../tools/python-bench) for performance scope.
 
 ### [Workers](https://developers.cloudflare.com/workers/runtime-apis/)
 

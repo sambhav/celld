@@ -357,3 +357,12 @@ Extensions register generic in-process `BuildHooks` through
 `deploy::build_with_hooks` or `dev::run_with_hooks`. Hooks can replace a compiler
 or transform its output before hashing/publication. The built-in Python/JS
 backends remain the default.
+
+Python runs as CPython in WASM inside each isolate. Ready asyncio callbacks use
+V8 microtasks with a bounded, request-local yield budget; delayed callbacks use
+native timers. Warm dispatch caches the Python callable and skips absent
+invocation hooks. This reduces host overhead while retaining ordinary Python
+semantics and WASM package imports. It does not compile Python code into V8
+machine code or eliminate interpreter startup. See the
+[matched Python/TypeScript benchmark](tools/python-bench) for methodology and
+measured limits.

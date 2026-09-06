@@ -1,7 +1,19 @@
 name: Built-in Cloudflare Python and compiler hooks
 on:
   pull_request:
+    paths:
+      - '.github/workflows/python.yml'
+      - 'Cargo.*'
+      - 'rust-toolchain*'
+      - 'crates/**'
+      - 'tools/packing-checks/**'
+      - 'tools/python-runtime/**'
+      - 'tools/python-checks/**'
+      - 'examples/python/**'
   workflow_dispatch:
+concurrency:
+  group: python-native-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -34,6 +46,7 @@ jobs:
       - run: node --test tools/python-checks/*.test.mjs
       - run: python tools/python-runtime/build.py target/lab/python-runtime
       - run: node tools/python-checks/pyodide-scheduler.mjs target/python-runtime-cache/314.0.6
+        timeout-minutes: 1
       - run: |
           cargo test --manifest-path tools/packing-checks/Cargo.toml --locked
           cargo build -p celld --profile lab --locked

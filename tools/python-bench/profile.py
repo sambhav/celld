@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import time
 import uuid
+import urllib.error
 
 from measure import HERE, free_port, http, node, publish, stop
 
@@ -55,6 +56,7 @@ class Default(Application):
         publish(args.binary.resolve(), project, out/(workload+'-publish.log'), env)
         with node(args.binary.resolve(), project, out/(workload+'.log'), env, 1) as (port, _, _ready):
             url = f'http://127.0.0.1:{port}/hello'
+            http(url, {'name':'first'})
             command = [str(driver),'--url',url,'--workload',workload,'--clients','32']
             subprocess.run(command+['--count','4'], check=True, capture_output=True)
             http(url)  # Clear warmup profile.
@@ -68,6 +70,8 @@ class Default(Application):
             print('PYTHON_PROFILE='+json.dumps(reports[-1]), flush=True)
     (out/'profiles.json').write_text(json.dumps(reports, indent=2)+'\n')
 except BaseException as error:
+    if isinstance(error, urllib.error.HTTPError):
+        print(error.read().decode(), flush=True)
     if isinstance(error, subprocess.CalledProcessError):
         print(error.stdout, error.stderr, flush=True)
     for log in out.glob('*.log'):
