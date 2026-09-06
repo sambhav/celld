@@ -43,7 +43,12 @@ class DurableInstance:
         if name.startswith("_"):
             raise TypeError("private methods are not exported")
         values = [python_from_rpc(value) for value in args]
-        result = getattr(self.instance, name)(*values)
+        handler = getattr(self.instance, name)
+        # Celld supplies alarm metadata. Cloudflare Python handlers commonly
+        # take no arguments; handlers declaring a parameter receive the info.
+        if name == "alarm" and not inspect.signature(handler).parameters:
+            values = []
+        result = handler(*values)
         if inspect.isawaitable(result):
             result = await result
         if isinstance(result, Response):

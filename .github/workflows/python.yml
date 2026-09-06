@@ -52,12 +52,19 @@ jobs:
           cargo test --manifest-path tools/packing-checks/Cargo.toml --locked
           cargo test -p celld-monty --locked
           cargo build -p celld --profile lab --locked
+      - uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: python-native-${{ hashFiles('Cargo.lock') }}-${{ github.sha }}
       - run: |
           cargo test -p celld --profile lab --lib python --locked
           cargo test -p celld --profile lab --lib shared_modules::tests --locked
           cargo test -p celld --profile lab --test build_hooks --locked
       - run: python tools/python-checks/smoke.py target/lab/celld
-      - run: pip install 'git+https://github.com/sambhav/celld-python@ef8edd8e22ecf4cfb0ccac624bbb67f79746ba41'
+      - run: pip install 'git+https://github.com/sambhav/celld-python@330dcfc607a542351acb54cedd1946cc22d83826'
       - run: python tools/python-checks/durable.py target/lab/celld
       - uses: actions/upload-artifact@v4
         if: always()

@@ -1,5 +1,10 @@
 # Public Python functions on Monty
 
+> These are historical standalone experiments. The integrated Pyodide/Monty
+> backends and current API are documented in [the runtime guide](../../docs/python.md).
+> Standalone benchmark results do not establish integrated celld performance.
+
+
 This working prototype uses the existing Monty interpreter without a fork.
 It is a standalone test server, not yet a celld deployment backend. The core
 export discovery, argument validation and invocation adapter are Rust.

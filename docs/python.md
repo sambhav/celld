@@ -44,10 +44,15 @@ restrict the function list. Inputs use named arguments, defaults and strict
 `str`, `int`, `float`, `bool`, `list[T]`, `dict[str,T]`, and `T | None` annotations.
 Return values must be JSON-compatible; return annotations are not validated.
 
+A stateless class is also supported: define `class Default` with public instance
+methods. If present, `Default` supplies the exported methods instead of module
+functions. It may use `__init__(self, ctx)` for context injection; no base class
+or decorator is required.
+
 ## Monty durable classes
 
 ```python
-from celld import Context
+from celld.monty import Context
 
 async def increment(ctx: Context, name: str, amount: int = 1):
     return await ctx.object("COUNTERS", name).call("increment", amount=amount)
@@ -106,7 +111,7 @@ provided import, so importing the Python SDK is unnecessary inside Monty.
 | `delete_all()`, `sync()` | Clear storage / wait for durability |
 | `sql(query, *bindings)` | Parameterized SQL, returning JSON-compatible rows |
 | `transaction(callback)` | Atomic storage callback; exceptions roll back |
-| `get_alarm()`, `set_alarm(timestamp_ms)`, `delete_alarm()` | Persistent scheduler state |
+| `get_alarm()`, `set_alarm(timestamp_ms)`, `delete_alarm()` | Persistent scheduler state; handler metadata is in `ctx.alarm` |
 | `ctx.object(binding, name).call(method, **args)` | Await a named durable method |
 | `await ctx.fetch(url, method="GET", headers=None, body=None)` | Fetch status, headers and text body |
 | `await ctx.sleep(seconds)` | Host timer |

@@ -185,14 +185,14 @@ impl Module {
                 if import
                     .module
                     .as_ref()
-                    .is_some_and(|name| name.as_str() == "celld")
+                    .is_some_and(|name| matches!(name.as_str(), "celld" | "celld.monty"))
                     && import.level == 0
                 {
                     if import.names.len() != 1
                         || import.names[0].name.as_str() != "Context"
                         || import.names[0].asname.is_some()
                     {
-                        return Err("Monty provides only `from celld import Context`; use Pyodide for the full SDK".into());
+                        return Err("Monty provides only `from celld.monty import Context`; use Pyodide for the full SDK".into());
                     }
                     for byte in
                         &mut code[import.range.start().to_usize()..import.range.end().to_usize()]

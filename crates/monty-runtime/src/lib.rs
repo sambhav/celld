@@ -115,7 +115,12 @@ mod tests {
         let (mut session, event) =
             Session::start(module.get("add").unwrap(), &json!({"amount":2}), &json!({})).unwrap();
         assert_eq!(event["operation"], "storage.get");
-        assert_eq!(session.resume(json!({"result":40})).unwrap()["result"], 42);
+        assert_eq!(
+            session
+                .resume(json!({"result":{"found":true,"value":40}}))
+                .unwrap()["result"],
+            42
+        );
         assert!(exports::Module::compile_class(source, "Missing").is_err());
         let module = exports::Module::compile_class(
             "class Hello:\n    def hello(self, name:str='world'): return name\n",
@@ -158,6 +163,20 @@ mod tests {
         );
     }
     #[test]
+    fn stored_null_is_distinct_from_a_missing_key() {
+        let m = exports::Module::compile("def read(ctx): return ctx.storage.get('x',99)").unwrap();
+        for (found, expected) in [(true, Value::Null), (false, json!(99))] {
+            let (mut session, _) =
+                Session::start(m.get("read").unwrap(), &json!({}), &json!({})).unwrap();
+            assert_eq!(
+                session
+                    .resume(json!({"result":{"found":found,"value":null}}))
+                    .unwrap()["result"],
+                expected
+            );
+        }
+    }
+    #[test]
     fn interpreter_budget_stops_a_busy_loop() {
         let m = exports::Module::compile("def loop():\n    while True: pass\n").unwrap();
         assert!(Session::start(m.get("loop").unwrap(), &json!({}), &json!({})).is_err());
@@ -177,7 +196,8 @@ mod tests {
             "storage.get"
         );
         assert_eq!(
-            s.resume(json!({"result":null})).unwrap()["args"],
+            s.resume(json!({"result":{"found":false,"value":null}}))
+                .unwrap()["args"],
             json!(["count", 1])
         );
         assert_eq!(
@@ -194,7 +214,9 @@ mod tests {
         let (mut session, event) =
             Session::start(f, &json!({"amount":2}), &json!({"id":"object-a"})).unwrap();
         assert_eq!(event["operation"], "storage.get");
-        let event = session.resume(json!({"result":40})).unwrap();
+        let event = session
+            .resume(json!({"result":{"found":true,"value":40}}))
+            .unwrap();
         assert_eq!(event["args"], json!(["count", 42]));
         let event = session.resume(json!({"result":null})).unwrap();
         assert_eq!(event["result"], json!({"value":42,"id":"object-a"}));

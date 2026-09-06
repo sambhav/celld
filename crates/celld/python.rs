@@ -281,7 +281,11 @@ pub(crate) fn bundle(
     }
     // Only app sources, declarations and imports live in the app entrypoint.
     // Runtime module bytes are shared in S3; initialization remains lazy.
-    let factories = if classes.is_empty() {"createPythonWorker"} else {"createPythonWorker, createPythonObject"};
+    let factories = if classes.is_empty() {
+        "createPythonWorker"
+    } else {
+        "createPythonWorker, createPythonObject"
+    };
     let mut bundle = format!("{imports}import {{{factories}}} from './_python_runtime.js';\nexport default createPythonWorker({},{{assets:{{{}}}}});\n", serde_json::to_string(&manifest)?, entries.join(","));
     for class in classes {
         if !class
@@ -332,6 +336,39 @@ pub(crate) fn bundle(
 mod tests {
     use super::*;
     #[test]
+    fn native_monty_builds_functions_and_classes_without_pyodide_artifacts() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join("worker.py"),"from celld.monty import Context\nclass Default:\n    def hello(self, name:str='world'): return name\nclass Counter:\n    def __init__(self,ctx): self.ctx=ctx\n    def get(self): return self.ctx.storage.get('x')\n").unwrap();
+        let built = bundle(
+            root.path(),
+            "worker.py",
+            &json!({"python_runtime":"monty"}),
+            &["Counter".into()],
+        )
+        .unwrap();
+        assert!(built.wasm.is_empty());
+        assert_eq!(built.shared.len(), 1);
+        assert_eq!(built.shared[0].0, "_monty_runtime.js");
+        let source = String::from_utf8(built.bundle).unwrap();
+        assert!(source.contains("export const Counter"));
+        assert!(source.contains("\"Default\")"));
+        std::fs::write(
+            root.path().join("pyproject.toml"),
+            "[project]\ndependencies=['pydantic']\n",
+        )
+        .unwrap();
+        assert!(bundle(
+            root.path(),
+            "worker.py",
+            &json!({"python_runtime":"monty"}),
+            &[]
+        )
+        .err()
+        .unwrap()
+        .to_string()
+        .contains("third-party"));
+    }
+    #[test]
     fn resolves_wasm_versions_and_target_markers_without_host_python() {
         let catalog = json!({"info":{"python":"3.14.2"},"packages":{
             "numpy":{"version":"2.4.1","depends":[]},
@@ -362,9 +399,15 @@ fn monty_bundle(root: &Path, entry: &str, classes: &[String]) -> anyhow::Result<
     if source.len() > 256 * 1024 {
         bail!("Monty source exceeds 256 KiB");
     }
-    let module = celld_monty::exports::Module::compile(&source).map_err(anyhow::Error::msg)?;
+    let parsed = ruff_python_parser::parse_module(&source).map_err(|e| anyhow!(e.to_string()))?;
+    let default_class = parsed.syntax().body.iter().any(|statement| matches!(statement, ruff_python_ast::Stmt::ClassDef(c) if c.name.as_str() == "Default")).then_some("Default");
+    let module = match default_class {
+        Some(class) => celld_monty::exports::Module::compile_class(&source, class),
+        None => celld_monty::exports::Module::compile(&source),
+    }
+    .map_err(anyhow::Error::msg)?;
     let encoded = serde_json::to_string(&source)?;
-    let mut bundle = format!("import {{createMontyWorker,createMontyObject}} from './_monty_runtime.js';\nconst source={encoded};\nexport default createMontyWorker(source,{});\n",module.manifest());
+    let mut bundle = format!("import {{createMontyWorker,createMontyObject}} from './_monty_runtime.js';\nconst source={encoded};\nexport default createMontyWorker(source,{},{});\n",module.manifest(),serde_json::to_string(&default_class)?);
     for class in classes {
         let module = celld_monty::exports::Module::compile_class(&source, class)
             .map_err(anyhow::Error::msg)?;

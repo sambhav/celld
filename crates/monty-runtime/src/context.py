@@ -9,8 +9,8 @@ def _celld_call(operation, *args):
 
 class _CelldStorage:
     def get(self, key, default=None):
-        value = _celld_call("storage.get", key)
-        return default if value is None else value
+        entry = _celld_call("storage.get", key)
+        return entry["value"] if entry["found"] else default
     def put(self, key, value):
         return _celld_call("storage.put", key, value)
     def delete(self, key):
@@ -56,6 +56,7 @@ class Context:
         self.client = metadata.get("client", {})
         self.call_id = metadata.get("call_id")
         self.attempt = metadata.get("attempt", 1)
+        self.alarm = metadata.get("alarm")
     def object(self, binding, name):
         return _CelldObject(binding, name)
     async def fetch(self, url, method="GET", headers=None, body=None):

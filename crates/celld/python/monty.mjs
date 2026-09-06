@@ -22,7 +22,10 @@ async function execute(module, name, args, env, ctx, signal, caller={}) {
     if (transactions.length && (!op.startsWith('storage.') || op === 'storage.sync'))
       throw new Error('external I/O is not allowed inside a storage transaction');
     switch (op) {
-      case 'storage.get': return await currentStorage().get(a[0]) ?? null;
+      case 'storage.get': {
+        const value = await currentStorage().get(a[0]);
+        return {found:value !== undefined,value:value ?? null};
+      }
       case 'storage.put': await currentStorage().put(a[0],a[1]); return null;
       case 'storage.delete': return await currentStorage().delete(a[0]);
       case 'storage.list': return Object.fromEntries(await currentStorage().list({prefix:a[0],limit:a[1],reverse:a[2]}));
@@ -147,7 +150,8 @@ export function createMontyObject(source, manifest, className) {
       // also covers awaited I/O, so read/modify/write cannot lose an update.
       return this.ctx.blockConcurrencyWhile(()=>{
         module ??= native({action:'compile',source,class:className}).module;
-        return execute(module,name,args,this.env,this.ctx);
+        return execute(module,name,name === 'alarm' ? {} : args,this.env,this.ctx,
+          undefined,name === 'alarm' ? {alarm:args} : {});
       });
     }});
   }

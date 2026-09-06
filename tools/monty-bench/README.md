@@ -1,5 +1,10 @@
 # Monty feasibility experiment
 
+> These are historical standalone experiments. The integrated Pyodide/Monty
+> backends and current API are documented in [the runtime guide](../../docs/python.md).
+> Standalone benchmark results do not establish integrated celld performance.
+
+
 The [public-function prototype](FUNCTIONS.md) now exposes ordinary module
 functions, generates a Python client and tests async gather, strict inputs,
 stateful snapshot continuation and actual Pydantic wheel ABI requirements.
