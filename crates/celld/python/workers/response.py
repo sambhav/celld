@@ -4,6 +4,7 @@ from typing import Any, Never
 
 import js
 import pyodide.http
+import _pyodide_entrypoint_helper
 from pyodide.ffi import JsException, JsProxy
 
 from .blob import Blob
@@ -19,6 +20,9 @@ from .utils import (
     _to_js_headers,
     _to_python_exception,
 )
+
+# Optional celld host fast path. Other hosts retain the upstream construction.
+_native_json_response = getattr(_pyodide_entrypoint_helper, "jsonResponse", None)
 
 
 class FetchResponse(pyodide.http.FetchResponse):
@@ -94,6 +98,12 @@ class FetchResponse(pyodide.http.FetchResponse):
         status_text="",
         headers: Headers = None,
     ) -> "Response":
+        if _native_json_response is not None and status == 200 and status_text == "" and headers is None and not isinstance(data, JsProxy):
+            try:
+                js_resp = _native_json_response(json.dumps(data))
+            except JsException as exc:
+                raise _to_python_exception(exc) from exc
+            return Response._from_fresh_native(js_resp)
         options = Response._create_options(status, status_text, headers)
         js_resp = None
         try:
@@ -110,7 +120,7 @@ class FetchResponse(pyodide.http.FetchResponse):
         except JsException as exc:
             raise _to_python_exception(exc) from exc
 
-        return Response(js_resp)
+        return Response._from_fresh_native(js_resp)
 
     def json(self, *args: Never, **kwargs: Never):
         if isinstance(self, Response):
@@ -125,6 +135,14 @@ class Response(FetchResponse):
     This class represents the response to an HTTP request, with a similar API to that of the web
     `Response` API: https://developer.mozilla.org/en-US/docs/Web/API/Response.
     """
+
+    @staticmethod
+    def _from_fresh_native(js_response):
+        # Response.from_json just constructed this object. Its URL is empty;
+        # no type probes or second JS Request allocation are needed.
+        result = object.__new__(Response)
+        FetchResponse.__init__(result, "", js_response)
+        return result
 
     def __init__(
         self,
@@ -149,7 +167,7 @@ class Response(FetchResponse):
             raise TypeError(f"Unsupported type in Response: {type(body).__name__}")
 
         # Handle constructing a Response from a JS Response.
-        if _is_js_instance(body, "Response"):
+        if js_type == "Response":
             if status is not None or len(status_text) > 0 or headers is not None:
                 raise ValueError(
                     "Expected no options when constructing Response from a js.Response"

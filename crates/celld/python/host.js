@@ -16,6 +16,8 @@ async function initialize(manifest, assets) {
     packages:Object.keys(manifest.lock.packages), createPyodideModule, enableRunUntilComplete:false});
   py.registerJsModule('_pyodide_entrypoint_helper', {
     cloudflareWorkersModule, cloudflareSocketsModule,
+    // One FFI call for the common JSON response, with fresh native headers.
+    jsonResponse: body => new Response(body, {headers:{'content-type':'application/json'}}),
     patchWaitUntil(ctx) {
       if (ctx.__pythonWaitUntil) return;
       const original = ctx.waitUntil.bind(ctx);
