@@ -5,6 +5,10 @@ on:
 permissions:
   contents: read
   actions: read
+env:
+  # Immutable native implementation under test; harness-only experiments can
+  # evolve without rebuilding the same executable. Both SHAs go in the report.
+  CELLD_NATIVE_SHA: 24806e263f09014bcb778428348ab9141cae040c
 jobs:
   measure:
     if: startsWith(github.event.label.name, 'benchmark-native-monty-')
@@ -24,18 +28,17 @@ jobs:
         with:
           go-version: '1.26.7'
           cache: false
-      - name: Resolve successful native build for this exact head
+      - name: Resolve successful build for the pinned native source
         id: build
         env:
           GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           python - <<'PY'
           import json, os, urllib.request
-          url=f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}/actions/workflows/python.yml/runs?event=pull_request&head_sha={os.environ['HEAD_SHA']}&status=success"
+          url=f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}/actions/workflows/python.yml/runs?event=pull_request&head_sha={os.environ['CELLD_NATIVE_SHA']}&status=success"
           request=urllib.request.Request(url,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN']})
           with urllib.request.urlopen(request) as r: runs=json.load(r)['workflow_runs']
-          assert runs, 'Run the native correctness workflow successfully before labeling this commit'
+          assert runs, 'The pinned native source must have a successful correctness run'
           with open(os.environ['GITHUB_OUTPUT'],'a') as f: f.write('run='+str(runs[0]['id'])+'\n')
           PY
       - uses: actions/download-artifact@v4
@@ -50,9 +53,11 @@ jobs:
       - run: go test ./...
         working-directory: tools/python-bench/load
       - name: Same-binary same-runner matched workloads
-        env:
-          CELLD_NATIVE_SHA: ${{ github.event.pull_request.head.sha }}
+        if: github.event.label.name != 'benchmark-native-monty-routing'
         run: python tools/python-bench/measure.py --binary native-bin/celld --baseline-runtime native-bin/python-runtime --variants typescript,monty,pyodide --rounds 2 --seconds 5 --clients 32,128 --isolates 1,2,4 --delays 10
+      - name: Isolate the cost of automatic durable-class routing
+        if: github.event.label.name == 'benchmark-native-monty-routing'
+        run: python tools/python-bench/measure.py --binary native-bin/celld --baseline-runtime native-bin/python-runtime --variants typescript,monty,monty-stateless --rounds 2 --seconds 5 --clients 128 --isolates 1,4 --delays '' 
       - uses: actions/upload-artifact@v4
         if: always()
         with:

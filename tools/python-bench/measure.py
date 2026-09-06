@@ -110,7 +110,7 @@ def main():
             try: http(f'http://{address}/stats');break
             except OSError: time.sleep(.05)
         else: raise RuntimeError('upstream did not start')
-        for workload, delay in [('hello',0)]+[('io',int(d)) for d in args.delays.split(',')]:
+        for workload, delay in [('hello',0)]+[('io',int(d)) for d in args.delays.split(',') if d]:
             projects={}
             for variant in args.variants.split(','):
                 project=out/f'{variant}-{workload}-{delay}'; project.mkdir()
@@ -125,12 +125,22 @@ def main():
                         (project/entry).write_text("def hello(name: str):\n    if not 1 <= len(name) <= 128: raise ValueError('invalid name')\n    return 'Hello, ' + name\n")
                     else:
                         shutil.copyfile(HERE/'monty.py',project/entry)
+                elif variant == 'monty-stateless':
+                    assert workload == 'hello', 'routing control only implements hello'
+                    code = "def hello(name: str):\n    if not 1 <= len(name) <= 128: raise ValueError('invalid name')\n    return 'Hello, ' + name\n"
+                    # Same native interpreter and lifecycle adapter, but no durable
+                    # class in the deployment. Tests the actor routing overhead.
+                    adapter=(ROOT/'crates/celld/python/monty.mjs').read_text()
+                    manifest=[{'name':'hello','parameters':{'type':'object','properties':{'name':{'type':'string'}},'required':['name'],'additionalProperties':False}}]
+                    entry='worker.js'
+                    (project/entry).write_text(adapter+'\nexport default createMontyWorker('+json.dumps(code)+','+json.dumps(manifest)+');\n')
+                    config['main']=entry
                 elif python: config['compatibility_flags']=['python_workers']
                 (project/'wrangler.json').write_text(json.dumps(config))
                 env={key:value for key,value in os.environ.items() if not key.startswith('CELLD_')}
                 runtime=args.candidate_runtime if variant=='candidate' else args.baseline_runtime
                 env.update(CELLD_V8_HEAP_LIMIT_MB='256',CELLD_MODULE_CACHE=str(out/'module-cache'))
-                if python and variant != 'monty': env['CELLD_PYTHON_RUNTIME']=str(runtime.resolve())
+                if python and not variant.startswith('monty'): env['CELLD_PYTHON_RUNTIME']=str(runtime.resolve())
                 published=publish(binary,project,out/(project.name+'-publish.log'),env)
                 projects[variant]=(project,env,published)
             for isolates in map(int,args.isolates.split(',')):
