@@ -563,6 +563,7 @@ pub fn build_with_hooks(options: &Options, hooks: &dyn crate::build_hooks::Build
         // partially deserializing the manifest and failing at worker load.
         required_features: {
             let mut features = Vec::new();
+            if project.metadata["python_runtime"] == "monty" { features.push(crate::protocol::FEATURE_MONTY_V1.to_string()); }
             if built_assets.is_some() {
                 features.push(FEATURE_ASSETS_V1.to_string());
             }

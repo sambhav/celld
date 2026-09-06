@@ -87,8 +87,7 @@ a compiler extension and are refused by the default compiler.
 
 This backend supports `WorkerEntrypoint.fetch`, request/response helpers,
 outbound `workers.fetch`, vars and compatible native binding objects. Python
-Durable Object classes, queue consumers and Workflow entrypoints are not wired
-into the dispatcher. Unsupported entrypoint configurations fail during building.
+Durable Object classes support method/fetch/alarm dispatch; see [the durable example](../python-durable). Queue consumers and Workflow entrypoints still require a compiler hook. See the [two-runtime guide](../../docs/python.md) for Monty and the full scope.
 Wrangler configuration support does not implement the Wrangler CLI's Cloudflare
 upload/control-plane protocol or every Cloudflare service.
 

@@ -1,5 +1,7 @@
 # celld documentation
 
+This fork also provides [Pyodide and native Monty Python runtimes](python.md).
+
 celld is a stateful distributed system. It runs server-side JavaScript on
 your machines, and it stores the long-term state in a bucket that you own:
 S3-compatible, Google Cloud Storage, or Azure Blob Storage. The JavaScript

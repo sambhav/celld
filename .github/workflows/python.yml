@@ -43,6 +43,7 @@ jobs:
           restore-keys: |
             python-native-${{ hashFiles('Cargo.lock') }}-
             fork-native-x86_64-unknown-linux-gnu-1.98.1-${{ hashFiles('Cargo.lock') }}-
+            python-native-
       - run: node --test tools/python-checks/*.test.mjs
       - run: python tools/python-runtime/build.py target/lab/python-runtime
       - run: node tools/python-checks/pyodide-scheduler.mjs target/python-runtime-cache/314.0.6
@@ -56,8 +57,10 @@ jobs:
           cargo test -p celld --profile lab --lib shared_modules::tests --locked
           cargo test -p celld --profile lab --test build_hooks --locked
       - run: python tools/python-checks/smoke.py target/lab/celld
+      - run: pip install 'git+https://github.com/sambhav/celld-python@ef8edd8e22ecf4cfb0ccac624bbb67f79746ba41'
       - run: python tools/python-checks/durable.py target/lab/celld
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: python-native
           path: |

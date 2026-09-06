@@ -178,6 +178,33 @@ impl Module {
         Self::compile_inner(source, Some(class))
     }
     fn compile_inner(source: &str, class: Option<&str>) -> Result<Self, String> {
+        let original = ruff_python_parser::parse_module(source).map_err(|e| e.to_string())?;
+        let mut code = source.as_bytes().to_vec();
+        for statement in &original.syntax().body {
+            if let Stmt::ImportFrom(import) = statement {
+                if import
+                    .module
+                    .as_ref()
+                    .is_some_and(|name| name.as_str() == "celld")
+                    && import.level == 0
+                {
+                    if import.names.len() != 1
+                        || import.names[0].name.as_str() != "Context"
+                        || import.names[0].asname.is_some()
+                    {
+                        return Err("Monty provides only `from celld import Context`; use Pyodide for the full SDK".into());
+                    }
+                    for byte in
+                        &mut code[import.range.start().to_usize()..import.range.end().to_usize()]
+                    {
+                        if *byte != b'\n' && *byte != b'\r' {
+                            *byte = b' ';
+                        }
+                    }
+                }
+            }
+        }
+        let source = std::str::from_utf8(&code).map_err(|e| e.to_string())?;
         let parsed = ruff_python_parser::parse_module(source).map_err(|e| e.to_string())?;
         let mut definitions = BTreeMap::new();
         let mut explicit = None;

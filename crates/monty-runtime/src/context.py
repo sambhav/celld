@@ -21,6 +21,8 @@ class _CelldStorage:
         return _celld_call("storage.delete_all")
     def sql(self, query, *bindings):
         return _celld_call("storage.sql", query, list(bindings))
+    def sync(self):
+        return _celld_call("storage.sync")
     def get_alarm(self):
         return _celld_call("storage.get_alarm")
     def set_alarm(self, timestamp_ms):
@@ -50,6 +52,10 @@ class Context:
         self.name = metadata.get("name")
         self.env = metadata.get("env", {})
         self.storage = _CelldStorage()
+        self.caller = metadata.get("caller", {})
+        self.client = metadata.get("client", {})
+        self.call_id = metadata.get("call_id")
+        self.attempt = metadata.get("attempt", 1)
     def object(self, binding, name):
         return _CelldObject(binding, name)
     async def fetch(self, url, method="GET", headers=None, body=None):

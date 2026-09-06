@@ -13,6 +13,7 @@ pub const CAPABILITIES: &[&str] = &[
     "storage.delete_all",
     "storage.sql",
     "storage.get_alarm",
+    "storage.sync",
     "storage.set_alarm",
     "storage.delete_alarm",
     "storage.transaction_begin",
@@ -127,6 +128,63 @@ mod tests {
                 .1["result"],
             "world"
         );
+    }
+    #[test]
+    fn context_import_is_resolved_by_the_compiler() {
+        let m = exports::Module::compile(
+            "from celld import Context\ndef hello(ctx: Context): return ctx.env['GREETING']\n",
+        )
+        .unwrap();
+        assert_eq!(
+            Session::start(
+                m.get("hello").unwrap(),
+                &json!({}),
+                &json!({"env":{"GREETING":"hi"}})
+            )
+            .unwrap()
+            .1["result"],
+            "hi"
+        );
+        assert!(exports::Module::compile("from celld import App\ndef hello(): return 1").is_err());
+    }
+    #[test]
+    fn stateless_storage_errors_are_catchable() {
+        let m=exports::Module::compile("def hello(ctx):\n    try:\n        ctx.storage.get('x')\n    except RuntimeError:\n        return 'no storage'\n").unwrap();
+        let (mut s, _) = Session::start(m.get("hello").unwrap(), &json!({}), &json!({})).unwrap();
+        assert_eq!(
+            s.resume(json!({"error":"storage requires a durable object"}))
+                .unwrap()["result"],
+            "no storage"
+        );
+    }
+    #[test]
+    fn interpreter_budget_stops_a_busy_loop() {
+        let m = exports::Module::compile("def loop():\n    while True: pass\n").unwrap();
+        assert!(Session::start(m.get("loop").unwrap(), &json!({}), &json!({})).is_err());
+    }
+    #[test]
+    fn example_counter_runs_a_transaction_from_an_instance_method() {
+        let m = exports::Module::compile_class(
+            include_str!("../../../examples/monty/worker.py"),
+            "Counter",
+        )
+        .unwrap();
+        let (mut s, event) =
+            Session::start(m.get("increment").unwrap(), &json!({}), &json!({})).unwrap();
+        assert_eq!(event["operation"], "storage.transaction_begin");
+        assert_eq!(
+            s.resume(json!({"result":null})).unwrap()["operation"],
+            "storage.get"
+        );
+        assert_eq!(
+            s.resume(json!({"result":null})).unwrap()["args"],
+            json!(["count", 1])
+        );
+        assert_eq!(
+            s.resume(json!({"result":null})).unwrap()["operation"],
+            "storage.transaction_commit"
+        );
+        assert_eq!(s.resume(json!({"result":null})).unwrap()["result"], 1);
     }
     #[test]
     fn context_is_injected_and_not_a_client_argument() {

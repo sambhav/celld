@@ -61,6 +61,7 @@ pub const SUPPORTED_DEPLOYMENT_FEATURES: &[&str] = &[
     FEATURE_R2_V1,
     FEATURE_WASM_V1,
     FEATURE_SHARED_MODULES_V1,
+    FEATURE_MONTY_V1,
     FEATURE_WORKFLOWS_V1,
 ];
 
@@ -82,6 +83,7 @@ pub const FEATURE_R2_V1: &str = "r2-v1";
 pub const FEATURE_SQLITE_VEC_V1: &str = "sqlite-vec-v1";
 pub const FEATURE_WASM_V1: &str = "wasm-v1";
 pub const FEATURE_SHARED_MODULES_V1: &str = "shared-modules-v1";
+pub const FEATURE_MONTY_V1: &str = "monty-native-v1";
 /// A deployment with `workflows` bindings. Required because a build without
 /// the reserved workflow cell would load the manifest, build an `env` missing
 /// the binding, and fail only when the application first calls `create()` —

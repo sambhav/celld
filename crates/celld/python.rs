@@ -281,7 +281,8 @@ pub(crate) fn bundle(
     }
     // Only app sources, declarations and imports live in the app entrypoint.
     // Runtime module bytes are shared in S3; initialization remains lazy.
-    let mut bundle = format!("{imports}import {{createPythonWorker, createPythonObject}} from './_python_runtime.js';\nexport default createPythonWorker({},{{assets:{{{}}}}});\n", serde_json::to_string(&manifest)?, entries.join(","));
+    let factories = if classes.is_empty() {"createPythonWorker"} else {"createPythonWorker, createPythonObject"};
+    let mut bundle = format!("{imports}import {{{factories}}} from './_python_runtime.js';\nexport default createPythonWorker({},{{assets:{{{}}}}});\n", serde_json::to_string(&manifest)?, entries.join(","));
     for class in classes {
         if !class
             .chars()

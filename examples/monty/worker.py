@@ -1,3 +1,6 @@
+from celld import Context
+
+
 def hello(name: str = "world"):
     return f"Hello, {name}!"
 

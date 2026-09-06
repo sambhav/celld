@@ -335,6 +335,8 @@ See the [limitations](docs/limitations.md) and
 
 ## Built-in Python workers
 
+Choose Pyodide for Cloudflare Python and WASM packages, or the experimental native Rust Monty backend for plain functions and durable classes. Both use celld’s existing storage and fleet lifecycle. See the [Python runtime guide](docs/python.md) for configuration, primitives, generated clients and current limits.
+
 The fork accepts Cloudflare-style Python entrypoints directly:
 
 ```python

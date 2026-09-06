@@ -10,7 +10,7 @@ const plainEnv = env => Object.fromEntries(Object.entries(env).filter(([,v]) =>
 const allowedName = name => typeof name === 'string' && !name.startsWith('_') &&
   !['constructor','then','fetch','alarm'].includes(name);
 
-async function execute(source, className, name, args, env, ctx, signal) {
+async function execute(module, name, args, env, ctx, signal, caller={}) {
   const transactions = [];
   let id;
   const currentStorage = () => {
@@ -18,7 +18,7 @@ async function execute(source, className, name, args, env, ctx, signal) {
     return transactions.at(-1)?.storage ?? ctx.storage;
   };
   const capability = async (op, a) => {
-    if (transactions.length && !op.startsWith('storage.'))
+    if (transactions.length && (!op.startsWith('storage.') || op === 'storage.sync'))
       throw new Error('external I/O is not allowed inside a storage transaction');
     switch (op) {
       case 'storage.get': return await currentStorage().get(a[0]) ?? null;
@@ -27,6 +27,7 @@ async function execute(source, className, name, args, env, ctx, signal) {
       case 'storage.list': return Object.fromEntries(await currentStorage().list({prefix:a[0],limit:a[1],reverse:a[2]}));
       case 'storage.delete_all': await currentStorage().deleteAll(); return null;
       case 'storage.sql': return currentStorage().sql.exec(a[0],...a[1]).toArray();
+      case 'storage.sync': await currentStorage().sync(); return null;
       case 'storage.get_alarm': return await currentStorage().getAlarm();
       case 'storage.set_alarm': await currentStorage().setAlarm(a[0]); return null;
       case 'storage.delete_alarm': await currentStorage().deleteAlarm(); return null;
@@ -85,7 +86,7 @@ async function execute(source, className, name, args, env, ctx, signal) {
     }
   };
   try {
-    let event = native({action:'start',source,class:className,name,args,context:{
+    let event = native({action:'start',module,name,args,context:{...caller,
       id:ctx?.id?.toString() ?? null,name:ctx?.id?.name ?? null,env:plainEnv(env)}});
     id = event.id;
     while (!event.done) {
@@ -98,31 +99,43 @@ async function execute(source, className, name, args, env, ctx, signal) {
     if (transactions.length) throw new Error('unclosed transaction');
     return event.result;
   } finally {
-    while (transactions.length) {
-      const transaction = transactions.pop();
-      transaction.finish(false);
-      await transaction.done;
+    try {
+      let failure;
+      while (transactions.length) {
+        const transaction = transactions.pop();
+        transaction.finish(false);
+        try { await transaction.done; } catch (error) { failure ??= error; }
+      }
+      if (failure) throw failure;
+    } finally {
+      if (id !== undefined) native({action:'drop',id});
     }
-    if (id !== undefined) native({action:'drop',id});
   }
 }
 
 export function createMontyWorker(source, manifest, className=null) {
+  let module;
   const methods = new Set(manifest.map(f=>f.name).filter(allowedName));
+  const schema = {version:1, runtime:'monty', functions:Object.fromEntries(manifest.filter(f=>methods.has(f.name)).map(f=>[f.name,{arguments:f.parameters,returns:{},context:{},stateful:false,replay:false}]))};
   return {async fetch(request,env,ctx) {
-    const match = /^\/call\/([^/]+)$/.exec(new URL(request.url).pathname);
+    const path = new URL(request.url).pathname;
+    if (path === '/__celld/schema' && request.method === 'GET') return Response.json(schema);
+    const match = /^\/(?:call\/)?([^/]+)$/.exec(path);
     const name = match && decodeURIComponent(match[1]);
     if (!methods.has(name)) return new Response('unknown function',{status:404});
     if (request.method !== 'POST') return new Response('POST required',{status:405});
     try {
       const body = await request.text();
       if (body.length > 1024 * 1024) return new Response('request too large',{status:413});
-      return Response.json({result:await execute(source,className,name,JSON.parse(body),env,ctx,request.signal)});
-    } catch (error) { return Response.json({error:String(error.message ?? error)},{status:422}); }
+      const caller = {caller:JSON.parse(request.headers.get('x-celld-context') || '{}'), client:JSON.parse(request.headers.get('x-celld-client') || '{}'), call_id:request.headers.get('x-celld-call-id'), attempt:Number(request.headers.get('x-celld-attempt') || 1)};
+      module ??= native({action:'compile',source,class:className}).module;
+      return Response.json({result:await execute(module,name,JSON.parse(body),env,ctx,request.signal,caller)});
+    } catch (error) { return Response.json({error:{code:'execution_error',message:String(error.message ?? error)}},{status:422}); }
   }};
 }
 
 export function createMontyObject(source, manifest, className) {
+  let module;
   class MontyObject {
     constructor(ctx,env) { this.ctx=ctx; this.env=env; }
   }
@@ -131,7 +144,10 @@ export function createMontyObject(source, manifest, className) {
     Object.defineProperty(MontyObject.prototype,name,{value:function(args={}) {
       // A whole function call is one serial object turn. The native input gate
       // also covers awaited I/O, so read/modify/write cannot lose an update.
-      return this.ctx.blockConcurrencyWhile(()=>execute(source,className,name,args,this.env,this.ctx));
+      return this.ctx.blockConcurrencyWhile(()=>{
+        module ??= native({action:'compile',source,class:className}).module;
+        return execute(module,name,args,this.env,this.ctx);
+      });
     }});
   }
   return MontyObject;

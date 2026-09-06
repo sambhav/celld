@@ -5,7 +5,8 @@ use serde_json::{json, Value};
 
 #[derive(Default)]
 struct MontyState {
-    modules: HashMap<String, Module>,
+    modules: HashMap<u32, Module>,
+    module_keys: HashMap<String, u32>,
     sessions: HashMap<u32, Session>,
     next: u32,
 }
@@ -29,19 +30,16 @@ fn execute(state: &mut MontyState, request: Value) -> Result<Value, String> {
         }
         return Ok(event);
     }
-    if action != "start" {
-        return Err("unknown Monty action".into());
-    }
-    if state.sessions.len() >= 256 {
-        return Err("Monty session capacity exceeded".into());
-    }
-    let source = request["source"].as_str().ok_or("missing source")?;
-    if source.len() > 256 * 1024 {
-        return Err("Monty source exceeds 256 KiB".into());
-    }
-    let class = request["class"].as_str();
-    let key = json!([source, class]).to_string();
-    if !state.modules.contains_key(&key) {
+    if action == "compile" {
+        let source = request["source"].as_str().ok_or("missing source")?;
+        if source.len() > 256 * 1024 {
+            return Err("Monty source exceeds 256 KiB".into());
+        }
+        let class = request["class"].as_str();
+        let key = json!([source, class]).to_string();
+        if let Some(id) = state.module_keys.get(&key) {
+            return Ok(json!({"module":id}));
+        }
         if state.modules.len() >= 64 {
             return Err("Monty module capacity exceeded".into());
         }
@@ -49,10 +47,29 @@ fn execute(state: &mut MontyState, request: Value) -> Result<Value, String> {
             Some(c) => Module::compile_class(source, c),
             None => Module::compile(source),
         }?;
-        state.modules.insert(key.clone(), module);
+        state.next = state
+            .next
+            .checked_add(1)
+            .ok_or("Monty handle space exhausted")?;
+        state.modules.insert(state.next, module);
+        state.module_keys.insert(key, state.next);
+        return Ok(json!({"module":state.next}));
     }
+    if action != "start" {
+        return Err("unknown Monty action".into());
+    }
+    if state.sessions.len() >= 256 {
+        return Err("Monty session capacity exceeded".into());
+    }
+    let module = request["module"]
+        .as_u64()
+        .and_then(|n| u32::try_from(n).ok())
+        .ok_or("missing module handle")?;
     let name = request["name"].as_str().ok_or("missing function name")?;
-    let function = state.modules[&key]
+    let function = state
+        .modules
+        .get(&module)
+        .ok_or("unknown module")?
         .get(name)
         .ok_or("unknown public function")?;
     let (session, mut event) = Session::start(function, &request["args"], &request["context"])?;

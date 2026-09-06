@@ -27,8 +27,15 @@ async def schedule(ctx):
     return await ctx.object('COUNTERS','default').call('schedule')
 async def rollback(ctx):
     return await ctx.object('COUNTERS','default').call('rollback')
+async def sql(ctx):
+    return await ctx.object('COUNTERS','default').call('sql')
 ''')
-            source=(root/'worker.py').read_text().replace('    def schedule(self,', '''    def inspect(self):
+            source=(root/'worker.py').read_text().replace('    def schedule(self,', '''    def sql(self):
+        storage=self.ctx.storage
+        storage.sql('CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT)')
+        storage.sql('INSERT OR REPLACE INTO test VALUES (?,?)', 1, 'works')
+        return storage.sql('SELECT value FROM test WHERE id=?', 1)
+    def inspect(self):
         return {'count':self.ctx.storage.get('count',0), 'alarmed':self.ctx.storage.get('alarmed',False), 'keys':self.ctx.storage.list()}
     def rollback(self):
         def fail(tx):
@@ -50,7 +57,11 @@ async def rollback(ctx):
         def call(name='increment',args=None):
             path='/call/'+name if runtime=='monty' else '/'
             req=Request(f'http://127.0.0.1:{port}{path}',data=json.dumps(args or {}).encode(),headers={'content-type':'application/json'})
-            with urlopen(req,timeout=30) as response: data=json.load(response)
+            try:
+                with urlopen(req,timeout=30) as response: data=json.load(response)
+            except HTTPError as error:
+                print(f'{runtime} {name}: {error.code}: {error.read().decode()}',flush=True)
+                raise
             return data['result'] if runtime=='monty' else data['count']
         def start(log):
             process=subprocess.Popen([binary,'dev',str(root),'--port',str(port),'--logs'],env=env,stdout=log,stderr=log)
@@ -76,8 +87,25 @@ async def rollback(ctx):
                 assert sorted(values)==list(range(2,18)),values
                 if runtime=='monty':
                     assert call('hello')=='Hello, world!'
+                    from celld.client import Client, AsyncClient
+                    from celld.codegen import generate
+                    import asyncio
+                    import importlib.util
+                    client=Client(f'http://127.0.0.1:{port}')
+                    contract=client.describe()
+                    assert contract['runtime']=='monty'
+                    assert 'ctx' not in contract['functions']['increment']['arguments']['properties']
+                    generated=generate(contract,Path(directory)/'client.py')
+                    spec=importlib.util.spec_from_file_location('monty_generated_client',generated)
+                    module=importlib.util.module_from_spec(spec)
+                    sys.modules[spec.name]=module
+                    spec.loader.exec_module(module)
+                    assert module.Client(client.endpoint).hello(name='Sam')=='Hello, Sam!'
+                    assert asyncio.run(module.AsyncClient(client.endpoint).hello(name='Async'))=='Hello, Async!'
+                    assert client.with_context({'actor':'test'}).call('hello')=='Hello, world!' 
                     assert call('increment',{'name':'other','amount':10})==10
                     assert call('rollback')==17
+                    assert call('sql')==[{'value':'works'}]
                     assert call('inspect')['count']==17
                     call('schedule')
                     deadline=time.monotonic()+15
