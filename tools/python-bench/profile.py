@@ -31,10 +31,10 @@ try:
         project = out / workload
         project.mkdir()
         shutil.copyfile(HERE/'worker.py', project/'app.py')
-        (project/'worker.py').write_text('''import profile, pstats, sys
+        (project/'worker.py').write_text('''import profile, pstats, sys, time
 from app import Default as Application
 from workers import Response
-profiler = profile.Profile()
+profiler = profile.Profile(timer=time.perf_counter)
 class Default(Application):
     async def fetch(self, request):
         if request.method == 'GET':
@@ -43,7 +43,7 @@ class Default(Application):
             rows = []
             for (file, line, name), (primitive, calls, own, total, callers) in stats.stats.items():
                 rows.append(dict(file=file, line=line, name=name, calls=calls, self_seconds=own, total_seconds=total))
-            profiler.__init__()
+            profiler.__init__(timer=time.perf_counter)
             return Response.from_json(sorted(rows, key=lambda row: row['self_seconds'], reverse=True)[:50])
         sys.setprofile(profiler.dispatcher)
         return await super().fetch(request)
