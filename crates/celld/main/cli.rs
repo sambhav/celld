@@ -41,6 +41,7 @@ pub(crate) enum Action {
     },
     Deploy(Vec<String>),
     Dev(Vec<String>),
+    Client(Vec<String>),
     Cell(Vec<String>),
     D1(Vec<String>),
     Kv(Vec<String>),
@@ -76,6 +77,7 @@ pub(crate) fn action_from_process() -> anyhow::Result<Action> {
         match action {
             "deploy" => return Ok(Action::Deploy(arguments)),
             "dev" => return Ok(Action::Dev(arguments)),
+            "client" => return Ok(Action::Client(arguments)),
             "cell" => return Ok(Action::Cell(arguments)),
             "d1" => return Ok(Action::D1(arguments)),
             "kv" => return Ok(Action::Kv(arguments)),
@@ -273,6 +275,7 @@ USAGE:
   celld --bucket [s3://|gs://|az://]NAME[/PREFIX] [OPTIONS]
   celld deploy [PROJECT] --bucket [s3://|gs://|az://]NAME[/PREFIX] [OPTIONS]
   celld dev [PROJECT] [--host IP] [--port PORT] [--logs]
+  celld client worker.py > client.py   Generate a standalone Monty Python client
   celld cell list [CLASS] --bucket [s3://|gs://|az://]NAME[/PREFIX] [OPTIONS]
   celld d1 migrations apply DATABASE [PROJECT] --bucket [s3://|gs://|az://]NAME[/PREFIX]
   celld d1 execute DATABASE --command SQL [PROJECT] --bucket [s3://|gs://|az://]NAME[/PREFIX]

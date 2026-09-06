@@ -3056,6 +3056,16 @@ async fn async_main(telemetry_config: Option<celld::telemetry::Config>) -> anyho
     let mut settings = match action {
         Action::Deploy(arguments) => return fleet::run_deploy(arguments).await,
         Action::Dev(arguments) => return celld::dev::run(arguments).await,
+        Action::Client(arguments) => {
+            if arguments.len() != 1 {
+                anyhow::bail!("usage: celld client worker.py > client.py (native Monty)");
+            }
+            let source = std::fs::read_to_string(&arguments[0])?;
+            if source.len() > 256 * 1024 { anyhow::bail!("Monty source exceeds 256 KiB"); }
+            let module = celld_monty::exports::Module::entry(&source).map_err(anyhow::Error::msg)?;
+            print!("{}", module.python_client());
+            return Ok(());
+        },
         Action::Cell(arguments) => return celld::cell_cli::run(arguments).await,
         Action::D1(arguments) => return celld::d1_cli::run(arguments).await,
         Action::Kv(arguments) => return celld::kv_cli::run(arguments).await,

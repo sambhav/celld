@@ -65,7 +65,10 @@ async function execute(module, name, args, env, ctx, signal, caller={}) {
         if (!allowedName(method) || typeof objectName !== 'string') throw new Error('invalid object call');
         const namespace = Object.hasOwn(env,binding) && env[binding];
         if (!namespace?.getByName) throw new Error('unknown durable object binding');
-        return await namespace.getByName(objectName)[method](params);
+        const object = namespace.getByName(objectName);
+        return binding === '__CELLD_FUNCTIONS'
+          ? await object.invoke({name:method,args:params})
+          : await object[method](params);
       }
       case 'fetch': {
         const response = await fetch(a[0], {method:a[1],headers:a[2],body:a[3] ?? undefined,signal});
@@ -120,7 +123,7 @@ async function execute(module, name, args, env, ctx, signal, caller={}) {
 export function createMontyWorker(source, manifest, className=null) {
   let module;
   const methods = new Set(manifest.map(f=>f.name).filter(allowedName));
-  const schema = {version:1, runtime:'monty', functions:Object.fromEntries(manifest.filter(f=>methods.has(f.name)).map(f=>[f.name,{arguments:f.parameters,returns:{},context:{},stateful:false,replay:false}]))};
+  const schema = {version:1, runtime:'monty', functions:Object.fromEntries(manifest.filter(f=>methods.has(f.name)).map(f=>[f.name,{arguments:f.parameters,returns:{},context:{},stateful:'optional',replay:false}]))};
   return {async fetch(request,env,ctx) {
     const path = new URL(request.url).pathname;
     if (path === '/__celld/schema' && request.method === 'GET') return Response.json(schema);
@@ -132,6 +135,13 @@ export function createMontyWorker(source, manifest, className=null) {
       const body = await request.text();
       if (body.length > 1024 * 1024) return new Response('request too large',{status:413});
       const caller = {caller:JSON.parse(request.headers.get('x-celld-context') || '{}'), client:JSON.parse(request.headers.get('x-celld-client') || '{}'), call_id:request.headers.get('x-celld-call-id'), attempt:Number(request.headers.get('x-celld-attempt') || 1)};
+      const key = request.headers.get('x-celld-object');
+      if (key !== null) {
+        const objectName = decodeURIComponent(key);
+        if (!objectName || objectName.length > 1024) throw new Error('object key must contain 1–1024 characters');
+        const object = env.__CELLD_FUNCTIONS.getByName(objectName);
+        return Response.json({result:await object.invoke({name,args:JSON.parse(body),caller})});
+      }
       module ??= native({action:'compile',source,class:className}).module;
       return Response.json({result:await execute(module,name,JSON.parse(body),env,ctx,request.signal,caller)});
     } catch (error) { return Response.json({error:{code:'execution_error',message:String(error.message ?? error)}},{status:422}); }
@@ -156,4 +166,28 @@ export function createMontyObject(source, manifest, className) {
     }});
   }
   return MontyObject;
+}
+
+// Each key gets one ordinary celld object and shares storage across functions.
+export function createMontyFunctions(source, manifest, className=null) {
+  let module;
+  const methods = new Set(manifest.map(f=>f.name).filter(allowedName));
+  const hasAlarm = manifest.some(f=>f.name === 'alarm');
+  return class MontyFunctions extends DurableObject {
+    constructor(ctx,env) { super(ctx,env); }
+    async invoke({name,args={},caller={}}) {
+      if (!methods.has(name)) throw new Error('unknown public function');
+      return this.ctx.blockConcurrencyWhile(()=>{
+        module ??= native({action:'compile',source,class:className}).module;
+        return execute(module,name,args,this.env,this.ctx,undefined,caller);
+      });
+    }
+    async alarm(metadata) {
+      if (!hasAlarm) throw new Error('define alarm(ctx) before scheduling an alarm');
+      return this.ctx.blockConcurrencyWhile(()=>{
+        module ??= native({action:'compile',source,class:className}).module;
+        return execute(module,'alarm',{},this.env,this.ctx,undefined,{alarm:metadata});
+      });
+    }
+  };
 }

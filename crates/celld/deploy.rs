@@ -1577,6 +1577,18 @@ fn read_project(path: &Path, root: &Path) -> anyhow::Result<Project> {
             );
         }
     }
+    // Function state is a normal script-scoped durable object. Users do not
+    // need a wrapper class, a binding, or a migration to opt into keyed calls.
+    if object.get("python_runtime").is_some_and(|v| v == "monty") {
+        if binding_names.contains_key("__CELLD_FUNCTIONS")
+            || do_classes.iter().chain(&sqlite_classes).any(|c| c == "__MontyFunctions") {
+            bail!("__CELLD_FUNCTIONS and __MontyFunctions are reserved for Monty function state");
+        }
+        do_classes.push("__MontyFunctions".into());
+        sqlite_classes.push("__MontyFunctions".into());
+        bindings.push(json!({"type":"durable_object_namespace",
+            "name":"__CELLD_FUNCTIONS","class_name":"__MontyFunctions"}));
+    }
     let mut metadata = Map::new();
     if let Some(runtime) = object.get("python_runtime") {
         if !matches!(runtime.as_str(), Some("pyodide" | "monty")) || !main.as_deref().is_some_and(crate::python::is_python) {

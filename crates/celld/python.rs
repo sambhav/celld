@@ -399,16 +399,16 @@ fn monty_bundle(root: &Path, entry: &str, classes: &[String]) -> anyhow::Result<
     if source.len() > 256 * 1024 {
         bail!("Monty source exceeds 256 KiB");
     }
-    let parsed = ruff_python_parser::parse_module(&source).map_err(|e| anyhow!(e.to_string()))?;
-    let default_class = parsed.syntax().body.iter().any(|statement| matches!(statement, ruff_python_ast::Stmt::ClassDef(c) if c.name.as_str() == "Default")).then_some("Default");
+    let default_class = celld_monty::exports::Module::entry_class(&source).map_err(anyhow::Error::msg)?;
     let module = match default_class {
         Some(class) => celld_monty::exports::Module::compile_class(&source, class),
         None => celld_monty::exports::Module::compile(&source),
     }
     .map_err(anyhow::Error::msg)?;
     let encoded = serde_json::to_string(&source)?;
-    let mut bundle = format!("import {{createMontyWorker,createMontyObject}} from './_monty_runtime.js';\nconst source={encoded};\nexport default createMontyWorker(source,{},{});\n",module.manifest(),serde_json::to_string(&default_class)?);
-    for class in classes {
+    let mut bundle = format!("import {{createMontyWorker,createMontyObject,createMontyFunctions}} from './_monty_runtime.js';\nconst source={encoded};\nexport default createMontyWorker(source,{},{});\n",module.manifest(),serde_json::to_string(&default_class)?);
+    bundle.push_str(&format!("export const __MontyFunctions = createMontyFunctions(source,{},{});\n", module.manifest(), serde_json::to_string(&default_class)?));
+    for class in classes.iter().filter(|class| class.as_str() != "__MontyFunctions") {
         let module = celld_monty::exports::Module::compile_class(&source, class)
             .map_err(anyhow::Error::msg)?;
         bundle.push_str(&format!(

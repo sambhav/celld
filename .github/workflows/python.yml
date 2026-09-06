@@ -10,6 +10,7 @@ on:
       - 'tools/python-runtime/**'
       - 'tools/python-checks/**'
       - 'examples/python/**'
+      - 'examples/monty*/**'
   workflow_dispatch:
 concurrency:
   group: python-native-${{ github.event.pull_request.number || github.ref }}
@@ -64,8 +65,8 @@ jobs:
           cargo test -p celld --profile lab --lib shared_modules::tests --locked
           cargo test -p celld --profile lab --test build_hooks --locked
       - run: python tools/python-checks/smoke.py target/lab/celld
-      - run: pip install 'git+https://github.com/sambhav/celld-python@330dcfc607a542351acb54cedd1946cc22d83826'
       - run: python tools/python-checks/durable.py target/lab/celld
+      - run: python tools/python-checks/functions.py target/lab/celld
       - uses: actions/upload-artifact@v4
         if: always()
         with:

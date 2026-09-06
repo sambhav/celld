@@ -1,0 +1,6 @@
+{
+  "name": "monty-functions",
+  "main": "worker.py",
+  "python_runtime": "monty",
+  "compatibility_date": "2026-09-06"
+}

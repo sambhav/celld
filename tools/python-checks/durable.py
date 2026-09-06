@@ -22,13 +22,13 @@ def check(runtime):
             with (root / 'worker.py').open('a') as f:
                 f.write('''
 async def inspect(ctx, name:str='default'):
-    return await ctx.object('COUNTERS',name).call('inspect')
+    return await ctx.object(name,binding='COUNTERS').call('inspect')
 async def schedule(ctx):
-    return await ctx.object('COUNTERS','default').call('schedule')
+    return await ctx.object('default',binding='COUNTERS').call('schedule')
 async def rollback(ctx):
-    return await ctx.object('COUNTERS','default').call('rollback')
+    return await ctx.object('default',binding='COUNTERS').call('rollback')
 async def sql(ctx):
-    return await ctx.object('COUNTERS','default').call('sql')
+    return await ctx.object('default',binding='COUNTERS').call('sql')
 ''')
             source=(root/'worker.py').read_text().replace('    def schedule(self,', '''    def sql(self):
         storage=self.ctx.storage
@@ -87,22 +87,6 @@ async def sql(ctx):
                 assert sorted(values)==list(range(2,18)),values
                 if runtime=='monty':
                     assert call('hello')=='Hello, world!'
-                    from celld.client import Client, AsyncClient
-                    from celld.codegen import generate
-                    import asyncio
-                    import importlib.util
-                    client=Client(f'http://127.0.0.1:{port}')
-                    contract=client.describe()
-                    assert contract['runtime']=='monty'
-                    assert 'ctx' not in contract['functions']['increment']['arguments']['properties']
-                    generated=generate(contract,Path(directory)/'client.py')
-                    spec=importlib.util.spec_from_file_location('monty_generated_client',generated)
-                    module=importlib.util.module_from_spec(spec)
-                    sys.modules[spec.name]=module
-                    spec.loader.exec_module(module)
-                    assert module.Client(client.endpoint).hello(name='Sam')=='Hello, Sam!'
-                    assert asyncio.run(module.AsyncClient(client.endpoint).hello(name='Async'))=='Hello, Async!'
-                    assert client.with_context({'actor':'test'}).call('hello')=='Hello, world!'
                     assert call('increment',{'name':'other','amount':10})==10
                     assert call('rollback')==17
                     assert call('sql')==[{'value':'works'}]

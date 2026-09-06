@@ -49,13 +49,64 @@ methods. If present, `Default` supplies the exported methods instead of module
 functions. It may use `__init__(self, ctx)` for context injection; no base class
 or decorator is required.
 
+## Optional context and function state
+
+Declare `ctx` only when needed. No import or decorator is required:
+
+```python
+def hello(name: str = "world"):
+    return f"Hello, {name}!"
+
+def increment(ctx, amount: int = 1):
+    value = ctx.storage.get("count", 0) + amount
+    ctx.storage.put("count", value)
+    return value
+```
+
+Generate a standalone client with the native binary:
+
+```sh
+celld client worker.py > client.py
+celld dev
+```
+
+```python
+from client import Client, AsyncClient
+
+client = Client("http://127.0.0.1:9876")  # use the address printed by celld dev
+client.hello(name="Sam")                  # stateless
+client["counter-1"].increment()            # durable, keyed call
+client["counter-2"].increment(amount=10)   # independent state
+```
+
+`AsyncClient` offers the same calls with `await`, using Python's standard-library
+thread executor for network I/O. No pycelld or Python package installation is
+required. Defaults belong to the server; clients do not silently retry errors.
+
+The compiler supplies the durable object binding and SQLite migration. Functions
+within one app share a key's storage. Different keys have independent storage;
+different applications have separate namespaces. A key is an identity, **not an
+authorization boundary**: the embedding platform must authorize key access.
+
+Without a key, the function stays stateless: `ctx.env`, fetch, timers and object
+calls work, but storage access raises a catchable error. With a key, the whole
+function runs through celld's serial object input gate. A failed call is not an
+automatic transaction: use `ctx.storage.transaction(callback)` for rollback.
+
+`async def forward(ctx, name): return await ctx.object(name).call("increment")`
+calls a key in the same app. Define `alarm(ctx)` to handle scheduled alarms.
+`ctx` is excluded from generated method arguments and cannot be supplied by callers.
+For editor annotations, `ctx` and `from celld import Context` are accepted
+by the native compiler; annotations are optional and no SDK is loaded.
+
+See [the minimal function example](../examples/monty-functions). The Python SDK
+and pycelld frontend are paused; native Monty is the active development path.
+
 ## Monty durable classes
 
 ```python
-from celld.monty import Context
-
-async def increment(ctx: Context, name: str, amount: int = 1):
-    return await ctx.object("COUNTERS", name).call("increment", amount=amount)
+async def increment(ctx, name: str, amount: int = 1):
+    return await ctx.object(name, binding="COUNTERS").call("increment", amount=amount)
 
 class Counter:
     def __init__(self, ctx):
@@ -112,7 +163,7 @@ provided import, so importing the Python SDK is unnecessary inside Monty.
 | `sql(query, *bindings)` | Parameterized SQL, returning JSON-compatible rows |
 | `transaction(callback)` | Atomic storage callback; exceptions roll back |
 | `get_alarm()`, `set_alarm(timestamp_ms)`, `delete_alarm()` | Persistent scheduler state; handler metadata is in `ctx.alarm` |
-| `ctx.object(binding, name).call(method, **args)` | Await a named durable method |
+| `ctx.object(name, binding="COUNTERS").call(method, **args)` | Await a named durable method |
 | `await ctx.fetch(url, method="GET", headers=None, body=None)` | Fetch status, headers and text body |
 | `await ctx.sleep(seconds)` | Host timer |
 | `ctx.now()`, `ctx.uuid()`, `ctx.log(message)` | Host clock, UUID and logging |
@@ -161,26 +212,3 @@ See [the complete durable example](../examples/python-durable) and the
 must come from this fork's matching build; they remain separate and are reused
 by content hash in S3. Queue/workflow entrypoints still require a compiler hook.
 
-## Python CLI and clients
-
-With the companion `celld` Python package from its draft PR:
-
-```sh
-pycelld init hello --runtime monty
-pycelld dev hello
-pycelld call hello name=Sam
-pycelld functions
-pycelld client --endpoint http://127.0.0.1:9876 --out hello_client.py
-```
-
-```python
-from hello_client import Client
-print(Client().hello(name="Sam"))
-```
-
-`pycelld init hello --runtime pyodide` creates a Cloudflare fetch worker.
-Native projects delegate build/dev/deploy to celld. The existing decorator SDK
-remains the richer Pyodide frontend for Pydantic, middleware and dependency
-injection; its build path is separate and is selected by omitting `--runtime`.
-The generated-client/function-discovery protocol applies to Monty functions
-and the decorator SDK, not arbitrary Cloudflare HTTP handlers.

@@ -1,12 +1,9 @@
-from celld.monty import Context
-
-
 def hello(name: str = "world"):
     return f"Hello, {name}!"
 
 
-async def increment(ctx: Context, name: str = "default", amount: int = 1):
-    return await ctx.object("COUNTERS", name).call("increment", amount=amount)
+async def increment(ctx, name: str = "default", amount: int = 1):
+    return await ctx.object(name, binding="COUNTERS").call("increment", amount=amount)
 
 
 class Counter:

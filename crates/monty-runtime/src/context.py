@@ -57,7 +57,7 @@ class Context:
         self.call_id = metadata.get("call_id")
         self.attempt = metadata.get("attempt", 1)
         self.alarm = metadata.get("alarm")
-    def object(self, binding, name):
+    def object(self, name, binding="__CELLD_FUNCTIONS"):
         return _CelldObject(binding, name)
     async def fetch(self, url, method="GET", headers=None, body=None):
         return _celld_call("fetch", url, method, headers or {}, body)

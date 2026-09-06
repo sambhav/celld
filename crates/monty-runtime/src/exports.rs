@@ -169,6 +169,21 @@ pub struct Module {
     functions: BTreeMap<String, Function>,
 }
 impl Module {
+    pub fn entry_class(source: &str) -> Result<Option<&'static str>, String> {
+        let parsed = ruff_python_parser::parse_module(source).map_err(|e| e.to_string())?;
+        Ok(parsed
+            .syntax()
+            .body
+            .iter()
+            .any(|s| matches!(s, Stmt::ClassDef(c) if c.name.as_str() == "Default"))
+            .then_some("Default"))
+    }
+    pub fn entry(source: &str) -> Result<Self, String> {
+        match Self::entry_class(source)? {
+            Some(class) => Self::compile_class(source, class),
+            None => Self::compile(source),
+        }
+    }
     /// Discovers only direct, public function declarations in the entry module.
     /// A literal __all__ optionally restricts that set; imports/classes/aliases are excluded.
     pub fn compile(source: &str) -> Result<Self, String> {
@@ -351,7 +366,7 @@ impl Module {
                     },
                 );
             }
-            let schema = json!({"name":name,"async":f.is_async,"parameters":{"type":"object","properties":properties,"required":required,"additionalProperties":false}});
+            let schema = json!({"name":name,"async":f.is_async,"context":context_parameter || construct_with_context,"parameters":{"type":"object","properties":properties,"required":required,"additionalProperties":false}});
             // Only a name parsed from the source is inserted into code. Request arguments
             // are input data, never interpolation/eval. Private functions cannot be selected.
             if class.is_some()
@@ -389,7 +404,11 @@ impl Module {
             );
             let code = format!(
                 "{}\n{source}\n_celld_json.dumps({call})",
-                include_str!("context.py")
+                if context_parameter || (class.is_some() && construct_with_context) {
+                    include_str!("context.py")
+                } else {
+                    "import json as _celld_json"
+                }
             );
             let runner = MontyRun::new(
                 code,
@@ -416,10 +435,12 @@ impl Module {
     }
     /// Generates a dependency-free client; optional defaults remain owned by the server.
     pub fn python_client(&self) -> String {
-        let mut source = String::from(
-            "from __future__ import annotations\nimport json\nfrom typing import Any\nfrom urllib.parse import quote\nfrom urllib.request import Request, urlopen\n\n_celld_unset: Any = object()\n\nclass Client:\n    def __init__(self, base_url: str, *, timeout: float = 30):\n        self._celld_url = base_url.rstrip('/')\n        self._celld_timeout = timeout\n\n    def _celld_call(self, name, args):\n        request = Request(self._celld_url + '/call/' + quote(name, safe=''), data=json.dumps(args).encode(), headers={'content-type': 'application/json'})\n        with urlopen(request, timeout=self._celld_timeout) as response:\n            return json.load(response)['result']\n",
-        );
-        for (name, f) in &self.functions {
+        let mut source = String::from(include_str!("client.py"));
+        for (name, f) in self
+            .functions
+            .iter()
+            .filter(|(n, _)| !matches!(n.as_str(), "alarm" | "fetch" | "then" | "constructor"))
+        {
             let params = f
                 .parameters
                 .iter()
@@ -451,6 +472,7 @@ impl Module {
                 "        return _celld_client._celld_call({name:?}, _celld_payload)\n"
             ));
         }
+        source.push_str("\nclass AsyncClient(Client):\n    # Standard-library async facade: network calls run in the event loop executor.\n    async def _celld_call(self, name, args):\n        return await asyncio.to_thread(super()._celld_call, name, args)\n");
         source
     }
     pub fn get(&self, name: &str) -> Option<&Function> {
