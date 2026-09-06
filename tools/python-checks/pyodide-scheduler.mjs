@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {pathToFileURL} from 'node:url';
 import {resolve} from 'node:path';
 import {createScheduler} from '../../crates/celld/python/schedule.mjs';
+import {createInvoker} from '../../crates/celld/python/invoke.mjs';
 
 const runtime = resolve(process.argv[2]);
 const {loadPyodide} = await import(pathToFileURL(`${runtime}/pyodide.mjs`));
@@ -47,7 +48,22 @@ else:
 `),
   ]);
   assert.equal(result, 'PASS');
+  const runtimeObject = py.runPython(`
+class Invocation:
+    async def fetch(self, request, env, ctx):
+        await asyncio.sleep(0)
+        return request + env.suffix + ctx.suffix
+Invocation()
+`);
+  const fetch = createInvoker({initializeRuntime:() => ({runtime:runtimeObject})});
+  assert.deepEqual(await Promise.all([
+    fetch('one', {suffix:'-env1'}, {suffix:'-ctx1'}),
+    fetch('two', {suffix:'-env2'}, {suffix:'-ctx2'}),
+  ]), ['one-env1-ctx1','two-env2-ctx2']);
+  assert.equal(await fetch('warm', {suffix:'-env'}, {suffix:'-ctx'}), 'warm-env-ctx');
   console.log('Real Pyodide scheduler, strict once-callable, contextvars, gather, timers, cancellation: PASS');
 } finally {
   clearTimeout(deadline);
 }
+// Pyodide owns a persistent event loop; this standalone test has completed.
+process.exit(0);
