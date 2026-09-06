@@ -431,6 +431,15 @@ fn gzipped(modules: &[(String, Vec<u8>)]) -> usize {
 
 pub fn build(options: &Options) -> anyhow::Result<Built> {
     let config_path = resolve_config(options.config.clone())?;
+    let source = std::fs::read_to_string(&config_path)
+        .with_context(|| format!("read {}", config_path.display()))?;
+    let config: Value = serde_json::from_str(&strip_jsonc(&source))
+        .with_context(|| format!("parse {}", config_path.display()))?;
+    let config_path = if crate::python_build::is_python(config.get("main").and_then(Value::as_str)) {
+        crate::python_build::prepare(&config_path)?
+    } else {
+        config_path
+    };
     let root = config_path
         .parent()
         .filter(|path| !path.as_os_str().is_empty())

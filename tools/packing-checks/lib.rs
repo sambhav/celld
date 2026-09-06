@@ -7,6 +7,8 @@ mod env_vars;
 mod isolate;
 #[path = "../../crates/celld/s3_etag.rs"]
 mod s3_etag;
+#[path = "../../crates/celld/python_build.rs"]
+mod python_build;
 
 #[cfg(test)]
 mod packing_tests {

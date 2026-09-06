@@ -1,0 +1,45 @@
+name: Python Wrangler integration
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  python:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      CARGO_BUILD_JOBS: '2'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: |
+          rustup toolchain install 1.98.1 --profile minimal
+          rustup default 1.98.1
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: python-native-${{ hashFiles('Cargo.lock') }}-${{ github.sha }}
+          restore-keys: |
+            python-native-${{ hashFiles('Cargo.lock') }}-
+            fork-native-x86_64-unknown-linux-gnu-1.98.1-${{ hashFiles('Cargo.lock') }}-
+      - run: |
+          cargo test --manifest-path tools/packing-checks/Cargo.toml --locked
+          cargo build -p celld --profile lab --locked
+      - name: Install pinned companion builder
+        run: |
+          python -m pip install 'celld @ git+https://github.com/sambhav/celld-python@249c4ccdb945e4c63595423611b978b95e4a95ee'
+          npm install -g esbuild@0.25.12
+      - run: python tools/python-checks/smoke.py target/lab/celld
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-native
+          path: target/lab/celld

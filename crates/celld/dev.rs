@@ -149,7 +149,7 @@ impl ProjectWatcher {
                 .context("the project watcher stopped")?
             {
                 Ok(event)
-                    if event
+                    if !event.kind.is_access() && event
                         .paths
                         .iter()
                         .any(|path| !ignored_project_path(&self.project, path)) =>
@@ -167,6 +167,7 @@ fn ignored_project_path(project: &Path, path: &Path) -> bool {
     const IGNORED_DIRECTORIES: &[&str] = &[
         ".cache",
         ".celld",
+        ".celld-python",
         ".git",
         ".hg",
         ".next",
@@ -176,6 +177,8 @@ fn ignored_project_path(project: &Path, path: &Path) -> bool {
         ".svn",
         ".turbo",
         ".yarn",
+        ".venv",
+        "__pycache__",
         "bower_components",
         "coverage",
         "node_modules",
