@@ -60,8 +60,9 @@ export function createPythonWorker(manifest, {assets={}, initializeRuntime=()=>s
 }
 
 export function createPythonObject(manifest, className, methods, {assets={}}={}) {
-  class PythonObject {
+  class PythonObject extends cloudflareWorkersModule.DurableObject {
     constructor(ctx, env) {
+      super(ctx, env);
       // Load lazily within the first event's I/O and scheduling context.
       this.ctx = ctx;
       this.env = env;

@@ -102,7 +102,7 @@ async def sql(ctx):
                     spec.loader.exec_module(module)
                     assert module.Client(client.endpoint).hello(name='Sam')=='Hello, Sam!'
                     assert asyncio.run(module.AsyncClient(client.endpoint).hello(name='Async'))=='Hello, Async!'
-                    assert client.with_context({'actor':'test'}).call('hello')=='Hello, world!' 
+                    assert client.with_context({'actor':'test'}).call('hello')=='Hello, world!'
                     assert call('increment',{'name':'other','amount':10})==10
                     assert call('rollback')==17
                     assert call('sql')==[{'value':'works'}]

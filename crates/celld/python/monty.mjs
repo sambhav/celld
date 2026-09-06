@@ -1,3 +1,4 @@
+import {DurableObject} from 'cloudflare:workers';
 // Lifecycle adapter only. Python compilation, execution and capability registration
 // live in Rust; storage/alarms/RPC use celld's existing native-backed objects.
 const native = request => {
@@ -136,8 +137,8 @@ export function createMontyWorker(source, manifest, className=null) {
 
 export function createMontyObject(source, manifest, className) {
   let module;
-  class MontyObject {
-    constructor(ctx,env) { this.ctx=ctx; this.env=env; }
+  class MontyObject extends DurableObject {
+    constructor(ctx,env) { super(ctx,env); }
   }
   for (const {name} of manifest) {
     if (!allowedName(name) && name !== 'alarm') throw new Error(`reserved method: ${name}`);
