@@ -70,3 +70,11 @@ and WASM packages remain available, but synchronous I/O via `run_sync`, WSGI,
 or libraries depending on that bridge is unavailable. The default runtime is
 unchanged. `benchmark-async-python-final` repeats the comparison three times
 with one/four isolate limits; both Python arms include the scheduler changes.
+
+The [repeated response-adapter A/B](results/2026-09-06-response.md) validated
+2.35 million responses and an additional 8–17% throughput gain over the
+scheduler runtime. `benchmark-response-python-final` reproduces it against the
+pinned scheduler artifact. The [async-only pilot](results/2026-09-06-async-pilot.md)
+records its modest gain and compatibility cost. A separate
+[Monty experiment](../monty-bench/results/2026-09-06.md) compares a native Rust
+prototype with actual celld Python/TypeScript on one GitHub runner.

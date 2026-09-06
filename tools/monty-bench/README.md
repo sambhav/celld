@@ -1,5 +1,10 @@
 # Monty feasibility experiment
 
+[Measured results and engineering decision](results/2026-09-06.md): the native
+prototype reaches approximately celld TypeScript throughput at four threads,
+with much lower RSS, but is not yet a celld backend. Warm function costs do
+not establish a faster interpreter, and Pydantic/WASM wheel imports are absent.
+
 A bounded experiment to decide whether an optional Monty backend is worth
 building alongside full Pyodide. It does not change celld's backend or SDK.
 Monty is pinned to `af272c3116e2525249103f960b79086fd250bcef`; Cargo.lock pins

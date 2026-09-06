@@ -1,0 +1,87 @@
+{
+  "cpython": {
+    "ns_per_call": [
+      3627.4170999945454,
+      3620.741600002475,
+      3619.26380001023,
+      3679.048499998316,
+      3660.8874999956242
+    ]
+  },
+  "monty": {
+    "async_resume": true,
+    "clone_start_ns": 45523.7256,
+    "compile_ns": 61591.338,
+    "first_run_us": 411.037,
+    "fresh_heap_run_ns": 42012.8706,
+    "initial_compile_us": 333.64300000000003,
+    "probes": [
+      {
+        "feature": "decorator_annotations",
+        "ok": true,
+        "result": "Int(2)"
+      },
+      {
+        "feature": "dataclass",
+        "ok": true,
+        "result": "String(\"ok\")"
+      },
+      {
+        "error": "Traceback (most recent call last):\n  File \"probe.py\", line 1, in <module>\n    from pydantic import BaseModel\nModuleNotFoundError: No module named 'pydantic'",
+        "feature": "pydantic",
+        "ok": false
+      },
+      {
+        "error": "Traceback (most recent call last):\n  File \"probe.py\", line 1, in <module>\n    import numpy\nModuleNotFoundError: No module named 'numpy'",
+        "feature": "numpy",
+        "ok": false
+      },
+      {
+        "error": "Traceback (most recent call last):\n  File \"probe.py\", line 1, in <module>\n    import inspect\nModuleNotFoundError: No module named 'inspect'",
+        "feature": "inspect",
+        "ok": false
+      },
+      {
+        "error": "Traceback (most recent call last):\n  File \"probe.py\", line 2, in <module>\n    f.__name__\nAttributeError: 'function' object has no attribute '__name__'",
+        "feature": "function_metadata",
+        "ok": false
+      },
+      {
+        "error": "Traceback (most recent call last):\n  File \"probe.py\", line 2, in <module>\n    asyncio.sleep(0)\nAttributeError: module 'asyncio' has no attribute 'sleep'",
+        "feature": "asyncio_sleep",
+        "ok": false
+      }
+    ],
+    "restore_ns": 9966.113,
+    "revision": "af272c3116e2525249103f960b79086fd250bcef",
+    "snapshot_bytes": 2976,
+    "state_restore": true,
+    "warm_repl_call_ns": null,
+    "warm_repl_error": "Traceback (most recent call last):\n  File \"<python-input-1>\", line 1, in <module>\n    handle(...)\n    ~~~~~~~~~~~\n  File \"<python-input-0>\", line 17, in handle\n    if not isinstance(name, str) or not 1 <= len(name) <= 128:\n                            ~~~\nNameError: name '<global 4>' is not defined"
+  },
+  "wasm": {
+    "boot_ms": 2095.468276,
+    "js_to_py_call_ns": [
+      9912.964899999997,
+      8065.203799999972,
+      8108.742099999971,
+      8081.01429999997,
+      8055.08990000003
+    ],
+    "jspi": false,
+    "python_inner_loop_ns": [
+      7175.951400000003,
+      6484.144500000033,
+      6228.071499999998,
+      6253.848599999978,
+      6227.753900000011
+    ],
+    "v8_js_ns": [
+      679.1987999999947,
+      502.4479000000156,
+      502.1032000000104,
+      500.86790000000286,
+      501.8156999999974
+    ]
+  }
+}
