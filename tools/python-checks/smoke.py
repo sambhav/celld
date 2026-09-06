@@ -93,10 +93,11 @@ class Default(WorkerEntrypoint):
             assert len(shared_objects()) > len(first_artifacts), 'declared wheels must be separate shared modules'
             source.write_text(Path('tools/python-checks/async_worker.py').read_text())
             expected = {'id':'probe','values':[0,1,2],'greeting':'Cloudflare Python'}
-            wait_for(expected, {'id':'probe'})
+            async_only = os.environ.get('CELLD_TEST_ASYNC_ONLY') == '1'
+            wait_for(expected, {'id':'probe', 'async_only':async_only})
             def concurrent_call(index):
                 name = f'request-{index}'
-                assert call({'id':name}) == dict(expected, id=name)
+                assert call({'id':name, 'async_only':async_only}) == dict(expected, id=name)
             with ThreadPoolExecutor(max_workers=16) as executor:
                 list(executor.map(concurrent_call, range(32)))
             assert not marker.exists(), 'celld invoked an external language tool'

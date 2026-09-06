@@ -9,7 +9,11 @@ request_id = contextvars.ContextVar('request_id')
 
 class Default(WorkerEntrypoint):
     async def fetch(self, request):
-        name = (await request.json())['id']
+        args = await request.json()
+        name = args['id']
+        if args.get('async_only'):
+            from pyodide.ffi import can_run_sync
+            assert not can_run_sync(), 'async-only runtime enabled stack switching'
         token = request_id.set(name)
         try:
             async def child(index):

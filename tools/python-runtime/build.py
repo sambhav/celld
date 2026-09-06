@@ -4,6 +4,7 @@ Never runs during celld dev/deploy/serve. Uses no pycelld installation.
 Runtime bytes are pinned by SHA-256, the esbuild version is pinned as well.
 """
 import base64
+import argparse
 import gzip
 import hashlib
 import json
@@ -16,7 +17,11 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / 'crates/celld/python'
-OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else SOURCE / 'generated'
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('output', nargs='?', type=Path, default=SOURCE / 'generated')
+parser.add_argument('--async-only', action='store_true', help='Experimental: disable JSPI and synchronous I/O via run_sync/WSGI; ordinary async workers and WASM packages remain available')
+args = parser.parse_args()
+OUT = args.output
 LOCK = json.loads((Path(__file__).parent / 'runtime-lock.json').read_text())
 
 
@@ -57,6 +62,11 @@ with tempfile.TemporaryDirectory(dir=cache) as temporary:
         'import {assetFetch as fetch} from "./assets.js";\nconst process=undefined; const location="https://celld-python.invalid/runtime/";\n' + source)
     (stage / 'pyodide.mjs').write_text(source)
     source = (runtime / 'pyodide.asm.mjs').read_text()
+    if args.async_only:
+        # Use Pyodide's existing no-JSPI path, as on engines without stack
+        # switching. Do not alter the global WebAssembly object or wasm bytes.
+        source = replace(source, 'var newJspiSupported=canConstructWasm&&"Suspending"in WebAssembly;', 'var newJspiSupported=false;')
+        source = replace(source, 'var oldJspiSupported=canConstructWasm&&"Suspender"in WebAssembly;', 'var oldJspiSupported=false;')
     source = replace(source, 'import("ws")', 'Promise.reject(new Error("Node ws unavailable in celld"))')
     source = replace(source, 'var ENVIRONMENT_IS_NODE=globalThis.process?.versions?.node&&globalThis.process?.type!="renderer";', 'var ENVIRONMENT_IS_NODE=false;')
     source = replace(source, 'var ENVIRONMENT_IS_WORKER=!!globalThis.WorkerGlobalScope;', 'var ENVIRONMENT_IS_WORKER=true;')
@@ -89,7 +99,7 @@ with tempfile.TemporaryDirectory(dir=cache) as temporary:
         'python-snapshot.b64': (None, base64.b64encode(snapshot.read_bytes())),
         'catalog.json': (None, (runtime / 'pyodide-lock.json').read_bytes()),
     }
-    manifest = {'schema_version': 1, 'abi': 'celld-python-v1', 'pyodide': LOCK['pyodide'], 'workers_sdk': LOCK['workers_sdk'], 'files': {}}
+    manifest = {'schema_version': 1, 'abi': 'celld-python-v1', 'pyodide': LOCK['pyodide'], 'workers_sdk': LOCK['workers_sdk'], 'execution_mode':'async-only' if args.async_only else 'default', 'files': {}}
     for name, (kind, data) in files.items():
         (OUT / name).write_bytes(data)
         manifest['files'][name] = {'bytes':len(data), 'sha256':hashlib.sha256(data).hexdigest(), 'kind':kind}

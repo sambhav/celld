@@ -1,0 +1,53 @@
+name: Async-only Python experiment
+on:
+  pull_request:
+    types: [labeled]
+permissions:
+  contents: read
+  actions: read
+env:
+  CELLD_NATIVE_SHA: 37e41ff2dcd6e1097f4207406a6b5a63a8e647fc
+jobs:
+  measure:
+    if: startsWith(github.event.label.name, 'benchmark-async-python')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.7'
+          cache: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-native
+          path: native-bin
+          run-id: 34019509877
+          github-token: ${{ github.token }}
+      - run: |
+          chmod +x native-bin/celld
+          npm install -g esbuild@0.25.12
+          node --test tools/python-checks/*.test.mjs
+          python tools/python-runtime/build.py default-runtime
+          python tools/python-runtime/build.py async-runtime --async-only
+      - run: CELLD_PYTHON_RUNTIME="$PWD/async-runtime" CELLD_TEST_ASYNC_ONLY=1 python tools/python-checks/smoke.py native-bin/celld
+        timeout-minutes: 5
+      - if: github.event.label.name != 'benchmark-async-python-final'
+        run: python tools/python-bench/measure.py --binary native-bin/celld --baseline-runtime default-runtime --candidate-runtime async-runtime --variants baseline,candidate,typescript --rounds 1 --seconds 5 --clients 256 --isolates 4 --delays 10,50
+      - if: github.event.label.name == 'benchmark-async-python-final'
+        run: python tools/python-bench/measure.py --binary native-bin/celld --baseline-runtime default-runtime --candidate-runtime async-runtime --variants baseline,candidate,typescript --rounds 3 --seconds 10 --clients 256 --delays 10,50
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: async-only-python-measurements
+          path: |
+            tools/python-bench/build/**/measurements.json
+            tools/python-bench/build/**/*.log

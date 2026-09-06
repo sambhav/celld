@@ -55,8 +55,18 @@ not the final repeated A/B. Use within-run comparisons; different GitHub runs
 can receive different CPU models even with the same runner label.
 
 The `profile-native-python` label runs a separate diagnostic call census using
-`sys.setprofile`. Its counts include coroutine resumptions and builtin calls.
-They identify repeated work, not CPU hotspots: Pyodide does not ship cProfile,
+`sys.setprofile`. With the default JSPI backend, tracing is limited to the
+initial synchronous segment: the hook does not follow stack-switched thread
+states across suspension. These counts do not profile the whole request or
+identify CPU hotspots. Pyodide does not ship cProfile,
 and celld does not expose the process CPU clock needed by the stdlib profiler.
 The diagnostic's instrumented throughput is deliberately not reported as a
 performance result. See the `native-python-profile` Actions artifact.
+
+`benchmark-async-python` tests an experimental artifact built with
+`python tools/python-runtime/build.py async-runtime --async-only`. It uses
+Pyodide's existing fallback for engines without JSPI. Ordinary async workers
+and WASM packages remain available, but synchronous I/O via `run_sync`, WSGI,
+or libraries depending on that bridge is unavailable. The default runtime is
+unchanged. `benchmark-async-python-final` repeats the comparison three times
+with one/four isolate limits; both Python arms include the scheduler changes.

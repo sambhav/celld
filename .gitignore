@@ -5,3 +5,5 @@ __pycache__/
 /tools/python-bench/build/
 /native-bin/
 /candidate-runtime/
+/default-runtime/
+/async-runtime/
