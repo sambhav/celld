@@ -14,9 +14,9 @@ Pyodide is the default for `.py` entrypoints. Monty is experimental.
 | Runtime artifacts | Separate shared interpreter, stdlib, snapshot and wheels | Interpreter linked into celld; small shared lifecycle adapter |
 | Server dependencies | Celld and the fleet bucket | Celld and the fleet bucket |
 
-The measured standalone Monty experiment motivated this backend. It does **not**
-establish throughput or memory isolation of this integrated implementation.
-See [benchmark methodology and historical results](../tools/monty-bench/results/2026-09-06.md).
+The integrated backend has [correctness and performance results](../tools/python-bench/results/2026-09-06-native-monty.md), including worker scaling and idle eviction/wake.
+It is faster and smaller than Pyodide on the measured workloads, but does not
+establish TypeScript throughput parity or memory containment for untrusted code.
 
 ## Monty functions
 
@@ -96,8 +96,8 @@ automatic transaction: use `ctx.storage.transaction(callback)` for rollback.
 `async def forward(ctx, name): return await ctx.object(name).call("increment")`
 calls a key in the same app. Define `alarm(ctx)` to handle scheduled alarms.
 `ctx` is excluded from generated method arguments and cannot be supplied by callers.
-For editor annotations, `ctx` and `from celld import Context` are accepted
-by the native compiler; annotations are optional and no SDK is loaded.
+The optional `ctx: Context` annotation and `from celld import Context` are accepted
+by the native compiler; no SDK is loaded. Editor stubs are not currently generated.
 
 See [the minimal function example](../examples/monty-functions). The Python SDK
 and pycelld frontend are paused; native Monty is the active development path.

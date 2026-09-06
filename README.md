@@ -335,7 +335,28 @@ See the [limitations](docs/limitations.md) and
 
 ## Built-in Python workers
 
-Choose Pyodide for Cloudflare Python and WASM packages, or the experimental native Rust Monty backend for plain functions and durable classes. Both use celld’s existing storage and fleet lifecycle. See the [Python runtime guide](docs/python.md) for configuration, primitives, generated clients and current limits.
+Native Monty runs plain Python functions in Rust. Add `ctx` only when the
+function needs state, bindings, or I/O:
+
+```python
+def hello(name: str = "world"):
+    return f"Hello, {name}!"
+
+def increment(ctx, amount: int = 1):
+    value = ctx.storage.get("count", 0) + amount
+    ctx.storage.put("count", value)
+    return value
+```
+
+Set `"python_runtime": "monty"` and `"main": "worker.py"` in Wrangler config.
+Run `celld dev`; generate a standalone client with
+`celld client worker.py > client.py`. Call `client.hello()` statelessly or
+`client["counter-1"].increment()` against durable state. No decorator, SDK install,
+or manually declared object binding is required. Classes remain optional.
+
+Monty is experimental. Pyodide remains available for Cloudflare Python and
+compatible WASM packages. See the [runtime guide](docs/python.md) and
+[minimal Monty example](examples/monty-functions) for setup, primitives and limits.
 
 The fork accepts Cloudflare-style Python entrypoints directly:
 
