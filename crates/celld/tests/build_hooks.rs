@@ -68,6 +68,10 @@ fn default_python_compiler_uses_shared_artifacts_and_rejects_bad_syntax() {
         .required_features
         .iter()
         .any(|feature| feature == "shared-modules-v1"));
+    celld::protocol::validate_shared_modules(&built.manifest).unwrap();
+    let mut ungated = built.manifest.clone();
+    ungated.required_features.clear();
+    assert!(celld::protocol::validate_shared_modules(&ungated).is_err());
     let shared = |built: &celld::deploy::Built| {
         built
             .manifest

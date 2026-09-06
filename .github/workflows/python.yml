@@ -36,7 +36,7 @@ jobs:
           cargo test --manifest-path tools/packing-checks/Cargo.toml --locked
           cargo build -p celld --profile lab --locked
       - run: |
-          cargo test -p celld --profile lab --lib python::tests --locked
+          cargo test -p celld --profile lab --lib python --locked
           cargo test -p celld --profile lab --lib shared_modules::tests --locked
           cargo test -p celld --profile lab --test build_hooks --locked
       - run: python tools/python-checks/smoke.py target/lab/celld

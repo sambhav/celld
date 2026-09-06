@@ -31,7 +31,7 @@ with tempfile.TemporaryDirectory(prefix='celld python ') as directory:
         env['CELLD_PYTHON_RUNTIME'] = os.environ['CELLD_PYTHON_RUNTIME']
     log_path = Path(directory) / 'dev.log'
     with log_path.open('w') as log:
-        process = subprocess.Popen([binary,'dev',str(root),'--port',str(port)], env=env, stdout=log, stderr=log)
+        process = subprocess.Popen([binary,'dev',str(root),'--port',str(port),'--logs'], env=env, stdout=log, stderr=log)
         def call(data=None):
             req = urllib.request.Request(f'http://127.0.0.1:{port}/',
                 data=json.dumps(data).encode() if data is not None else None,

@@ -726,6 +726,7 @@ async fn load_worker_at_pointer(
     }
     crate::protocol::validate_required_features(&manifest.required_features)?;
     crate::protocol::validate_queue_manifest(&manifest)?;
+    crate::protocol::validate_shared_modules(&manifest)?;
     let src = match manifest.main_module.as_deref() {
         Some(main) => get_string(bucket, &format!("{}/{main}", pointer.prefix)).await?,
         None if manifest.assets.is_some() => {

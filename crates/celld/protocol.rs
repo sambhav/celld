@@ -327,6 +327,17 @@ pub enum ModuleKind {
     EsModule,
 }
 
+/// Shared module interpretation must never be silently applied by an older node.
+pub fn validate_shared_modules(manifest: &Manifest) -> anyhow::Result<()> {
+    let needs_shared = manifest.modules.iter().any(|module| module.shared || module.kind == Some(ModuleKind::EsModule));
+    anyhow::ensure!(!needs_shared || manifest.required_features.iter().any(|feature| feature == FEATURE_SHARED_MODULES_V1), "Shared/ES modules require shared-modules-v1");
+    for module in manifest.modules.iter().filter(|module| module.shared) {
+        anyhow::ensure!(manifest.main_module.as_deref() != Some(&module.name), "Shared main modules are not supported");
+        anyhow::ensure!(module.sha256.len() == 64 && module.sha256.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)), "Shared module requires full SHA-256");
+    }
+    Ok(())
+}
+
 /// Reference from a deploy manifest to its immutable, canonical asset index.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AssetManifestRef {

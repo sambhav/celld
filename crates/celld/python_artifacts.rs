@@ -247,3 +247,76 @@ pub(crate) fn load(root: &Path) -> anyhow::Result<BTreeMap<String, Vec<u8>>> {
     }
     Ok(output)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn fixture() -> tempfile::TempDir {
+        let root = tempfile::tempdir().unwrap();
+        let artifacts = root.path().join("runtime");
+        std::fs::create_dir(&artifacts).unwrap();
+        let mut files = serde_json::Map::new();
+        for name in FILES {
+            let kind = match *name {
+                "_python_runtime.js" => Some("esmodule"),
+                "pyodide.asm.wasm" => Some("wasm"),
+                _ => None,
+            };
+            std::fs::write(artifacts.join(name), b"fixture").unwrap();
+            files.insert(
+                name.to_string(),
+                serde_json::json!({"bytes":7,"sha256":digest(b"fixture"),"kind":kind}),
+            );
+        }
+        let manifest = serde_json::to_vec(&serde_json::json!({"schema_version":1,"abi":"celld-python-v1","pyodide":"314.0.6","workers_sdk":"1.8.3","files":files})).unwrap();
+        std::fs::write(artifacts.join("runtime.json"), &manifest).unwrap();
+        std::fs::write(
+            root.path().join("pyproject.toml"),
+            format!(
+                "[tool.celld.python-runtime]\nmanifest='runtime/runtime.json'\nsha256='{}'\n",
+                digest(&manifest)
+            ),
+        )
+        .unwrap();
+        root
+    }
+    #[test]
+    fn pinned_artifacts_are_loaded_offline_and_every_file_is_verified() {
+        let root = fixture();
+        assert_eq!(load(root.path()).unwrap().len(), FILES.len());
+        std::fs::write(root.path().join("runtime/python-stdlib.b64"), b"damaged").unwrap();
+        let error = load(root.path()).unwrap_err().to_string();
+        assert!(
+            error.contains("checksum mismatch: python-stdlib.b64"),
+            "{error}"
+        );
+    }
+    #[test]
+    fn modified_manifest_is_rejected_before_using_its_files() {
+        let root = fixture();
+        std::fs::write(root.path().join("runtime/runtime.json"), b"{}").unwrap();
+        assert!(load(root.path())
+            .unwrap_err()
+            .to_string()
+            .contains("manifest checksum mismatch"));
+    }
+    #[test]
+    fn remote_manifests_must_be_https_and_pinned_before_any_download() {
+        let root = tempfile::tempdir().unwrap();
+        let project = root.path().join("pyproject.toml");
+        std::fs::write(
+            &project,
+            "[tool.celld.python-runtime]\nmanifest='https://never-contact.invalid/runtime.json'\n",
+        )
+        .unwrap();
+        assert!(load(root.path())
+            .unwrap_err()
+            .to_string()
+            .contains("sha256 is required"));
+        std::fs::write(&project, format!("[tool.celld.python-runtime]\nmanifest='http://never-contact.invalid/runtime.json'\nsha256='{}'\n", "0".repeat(64))).unwrap();
+        assert!(load(root.path())
+            .unwrap_err()
+            .to_string()
+            .contains("must use HTTPS"));
+    }
+}

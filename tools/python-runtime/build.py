@@ -47,6 +47,9 @@ if not (node / 'node_modules/.bin/esbuild').exists():
 with tempfile.TemporaryDirectory(dir=cache) as temporary:
     stage = Path(temporary)
     source = (runtime / 'pyodide.mjs').read_text()
+    # Release bootstrap input from API.config after the loader takes its local copy.
+    source = replace(source, 'return t.noInitialRun=!0,t.INITIAL_MEMORY=i.length,i',
+        'return delete e._loadSnapshot,t.noInitialRun=!0,t.INITIAL_MEMORY=i.length,i')
     source = replace(source, 'import("ws")', 'Promise.reject(new Error("Node ws unavailable in celld"))')
     source = replace(source, '_(e+"pyodide.asm.wasm")', '{response:true}')
     source = replace(source, 'WebAssembly.instantiateStreaming(n,s)', 'Promise.resolve({instance:new WebAssembly.Instance(_pythonWasm,s),module:_pythonWasm})')
