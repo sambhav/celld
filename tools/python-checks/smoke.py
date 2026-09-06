@@ -1,5 +1,6 @@
 """Native Cloudflare Python: run without language tools, then reload and use WASM packages."""
 import json
+from concurrent.futures import ThreadPoolExecutor
 import os
 from pathlib import Path
 import shutil
@@ -90,8 +91,16 @@ class Default(WorkerEntrypoint):
 ''')
             wait_for({'mean':3.0,'greeting':'Cloudflare Python'}, {'values':[1,2,6]})
             assert len(shared_objects()) > len(first_artifacts), 'declared wheels must be separate shared modules'
+            source.write_text(Path('tools/python-checks/async_worker.py').read_text())
+            expected = {'id':'probe','values':[0,1,2],'greeting':'Cloudflare Python'}
+            wait_for(expected, {'id':'probe'})
+            def concurrent_call(index):
+                name = f'request-{index}'
+                assert call({'id':name}) == dict(expected, id=name)
+            with ThreadPoolExecutor(max_workers=16) as executor:
+                list(executor.map(concurrent_call, range(32)))
             assert not marker.exists(), 'celld invoked an external language tool'
-            print('Built-in Cloudflare Python, env, JSON, Pydantic, NumPy, reload, invalid-edit recovery, shared runtime/wheel reuse, no external CLI: PASS')
+            print('Built-in Cloudflare Python, env, JSON, Pydantic, NumPy, reload, invalid-edit recovery, shared runtime/wheel reuse, concurrent asyncio context/cancellation/timers, no external CLI: PASS')
         finally:
             process.terminate()
             try:

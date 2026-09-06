@@ -31,6 +31,7 @@ jobs:
           restore-keys: |
             python-native-${{ hashFiles('Cargo.lock') }}-
             fork-native-x86_64-unknown-linux-gnu-1.98.1-${{ hashFiles('Cargo.lock') }}-
+      - run: node --test tools/python-checks/*.test.mjs
       - run: python tools/python-runtime/build.py target/lab/python-runtime
       - run: |
           cargo test --manifest-path tools/packing-checks/Cargo.toml --locked
