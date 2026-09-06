@@ -27,5 +27,3 @@ export function createScheduler({microtask=queueMicrotask, timer=setTimeout, bud
   }
   return schedule;
 }
-
-export const schedulePythonCallback = createScheduler();

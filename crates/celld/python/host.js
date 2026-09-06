@@ -5,6 +5,7 @@ import {workers, dispatch} from './python-sources.js';
 import * as cloudflareWorkersModule from 'cloudflare:workers';
 import * as cloudflareSocketsModule from 'cloudflare:sockets';
 import {createInvoker} from './invoke.mjs';
+import {withPythonSchedulingContext} from './scheduling-context.mjs';
 
 async function initialize(manifest, assets) {
   registerAssets(assets);
@@ -40,5 +41,6 @@ async function initialize(manifest, assets) {
 // Generic runtime hooks are supplied in-process by an extension. The default
 // is the built-in Cloudflare Python backend, with one warm runtime per isolate.
 export function createPythonWorker(manifest, {assets={}, initializeRuntime=()=>initialize(manifest, assets), beforeInvoke, afterInvoke}={}) {
-  return {fetch:createInvoker({initializeRuntime, beforeInvoke, afterInvoke})};
+  const invoke = createInvoker({initializeRuntime, beforeInvoke, afterInvoke});
+  return {fetch:(request, env, ctx) => withPythonSchedulingContext(() => invoke(request, env, ctx))};
 }

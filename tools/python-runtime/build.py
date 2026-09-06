@@ -63,9 +63,9 @@ with tempfile.TemporaryDirectory(dir=cache) as temporary:
     source = replace(source, 'typeof globalThis.MessageChannel=="function"', 'false')
     source = replace(source, 'function me(t,e=0){e<=2?bo(t):setTimeout(t,e)}',
         'function me(t,e=0){schedulePythonCallback(t,e)}')
-    (stage / 'pyodide.asm.mjs').write_text('import {schedulePythonCallback} from "./schedule.mjs";\nimport {WebAssembly} from "./wasm.js";\nimport {assetFetch as fetch} from "./assets.js";\nconst location="https://celld-python.invalid/runtime/";\n' + source)
+    (stage / 'pyodide.asm.mjs').write_text('import {schedulePythonCallback} from "./scheduling-context.mjs";\nimport {WebAssembly} from "./wasm.js";\nimport {assetFetch as fetch} from "./assets.js";\nconst location="https://celld-python.invalid/runtime/";\n' + source)
     shutil.copyfile(runtime / 'pyodide.asm.wasm', stage / 'pyodide.asm.wasm')
-    for name in ('host.js', 'invoke.mjs', 'schedule.mjs', 'wasm.js', 'assets.js'):
+    for name in ('host.js', 'invoke.mjs', 'schedule.mjs', 'scheduling-context.mjs', 'wasm.js', 'assets.js'):
         shutil.copyfile(SOURCE / name, stage / name)
     snapshot = cache / 'baseline.snapshot.gz'
     snapshot_key = hashlib.sha256((SOURCE / 'snapshot.mjs').read_bytes() + json.dumps(LOCK,sort_keys=True).encode()).hexdigest()
