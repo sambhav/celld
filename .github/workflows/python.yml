@@ -33,6 +33,7 @@ jobs:
             fork-native-x86_64-unknown-linux-gnu-1.98.1-${{ hashFiles('Cargo.lock') }}-
       - run: node --test tools/python-checks/*.test.mjs
       - run: python tools/python-runtime/build.py target/lab/python-runtime
+      - run: node tools/python-checks/pyodide-scheduler.mjs target/python-runtime-cache/314.0.6
       - run: |
           cargo test --manifest-path tools/packing-checks/Cargo.toml --locked
           cargo build -p celld --profile lab --locked

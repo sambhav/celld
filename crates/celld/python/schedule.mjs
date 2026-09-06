@@ -14,7 +14,9 @@ export function createScheduler({microtask=queueMicrotask, timer=setTimeout, bud
     if (gate) return gate.then(() => schedule(callback));
     if (remaining > 0) {
       remaining--;
-      return microtask(callback);
+      // celld implements queueMicrotask through Promise.then, which supplies
+      // one undefined argument. Python's once-callable requires zero args.
+      return microtask(() => callback());
     }
     gate = new Promise(resolve => timer(() => {
       remaining = budget;

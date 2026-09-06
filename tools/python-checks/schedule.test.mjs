@@ -3,6 +3,13 @@ import assert from 'node:assert/strict';
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {createScheduler} from '../../crates/celld/python/schedule.mjs';
 
+test('promise-based microtasks call strict Python callbacks with zero arguments', async () => {
+  const schedule = createScheduler({microtask:f => Promise.resolve().then(f)});
+  await new Promise((resolve,reject) => schedule(function() {
+    try {assert.equal(arguments.length, 0); resolve();} catch (error) {reject(error);}
+  }));
+});
+
 test('ready callbacks are deferred, FIFO, once each; positive delays remain timers', () => {
   const microtasks = [], timers = [], seen = [];
   const schedule = createScheduler({microtask:f => microtasks.push(f), timer:(f,ms) => timers.push([f,ms])});

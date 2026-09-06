@@ -42,6 +42,7 @@ jobs:
         run: |
           node --test tools/python-checks/*.test.mjs
           python tools/python-runtime/build.py candidate-runtime
+          node tools/python-checks/pyodide-scheduler.mjs target/python-runtime-cache/314.0.6
           CELLD_PYTHON_RUNTIME="$PWD/candidate-runtime" python tools/python-checks/smoke.py native-bin/celld
       - if: github.event.label.name != 'benchmark-native-python-final'
         run: python tools/python-bench/measure.py --binary native-bin/celld --baseline-runtime native-bin/python-runtime
