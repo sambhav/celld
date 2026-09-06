@@ -7,3 +7,5 @@ __pycache__/
 /candidate-runtime/
 /default-runtime/
 /async-runtime/
+/tools/monty-bench/target/
+/tools/monty-bench/build/

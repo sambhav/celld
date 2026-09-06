@@ -1,0 +1,20 @@
+[package]
+name = "celld-monty-experiment"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+# Deliberately separate: this experiment does not add Monty to celld binaries.
+[workspace]
+
+[dependencies]
+monty = { git = "https://github.com/pydantic/monty", rev = "af272c3116e2525249103f960b79086fd250bcef" }
+monty-types = { git = "https://github.com/pydantic/monty", rev = "af272c3116e2525249103f960b79086fd250bcef" }
+axum = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "net", "time", "macros"] }
+reqwest = { version = "0.12", default-features = false }
+serde_json = "1"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

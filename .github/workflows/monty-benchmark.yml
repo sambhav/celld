@@ -1,0 +1,57 @@
+name: Monty feasibility experiment
+on:
+  pull_request:
+    types: [labeled]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  measure:
+    if: github.event.label.name == 'benchmark-monty'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.7'
+          cache: false
+      - uses: dtolnay/rust-toolchain@1.98.1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tools/monty-bench
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-native
+          path: native-bin
+          run-id: 34019509877
+          github-token: ${{ github.token }}
+      - run: |
+          chmod +x native-bin/celld
+          npm install -g esbuild@0.25.12
+          cargo fmt --manifest-path tools/monty-bench/Cargo.toml --check
+          cargo build --release --locked --manifest-path tools/monty-bench/Cargo.toml
+          python tools/python-runtime/build.py candidate-runtime
+      - name: Interpreter probes and costs
+        run: |
+          mkdir -p tools/monty-bench/build
+          tools/monty-bench/target/release/celld-monty-experiment micro | tee tools/monty-bench/build/monty-micro.log
+          python tools/monty-bench/micro.py | tee tools/monty-bench/build/cpython-micro.log
+          node tools/monty-bench/micro.mjs target/python-runtime-cache/314.0.6 | tee tools/monty-bench/build/wasm-micro.log
+      - name: Same-runner HTTP comparison
+        run: python tools/monty-bench/measure.py --celld native-bin/celld --runtime candidate-runtime --monty tools/monty-bench/target/release/celld-monty-experiment
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: monty-feasibility
+          path: |
+            tools/monty-bench/build/**/*.json
+            tools/monty-bench/build/**/*.log
