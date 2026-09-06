@@ -1,0 +1,43 @@
+name: Monty public functions and compatibility
+on:
+  pull_request:
+    types: [labeled]
+permissions:
+  contents: read
+jobs:
+  checks:
+    if: github.event.label.name == 'check-monty-functions'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: dtolnay/rust-toolchain@1.98.1
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tools/monty-bench
+      - run: |
+          cargo fmt --manifest-path tools/monty-bench/Cargo.toml --check
+          cargo test --release --locked --manifest-path tools/monty-bench/Cargo.toml
+          cargo build --release --locked --manifest-path tools/monty-bench/Cargo.toml --bins
+      - run: |
+          mkdir -p tools/monty-bench/build
+          python tools/monty-bench/check-functions.py tools/monty-bench/target/release/monty-functions | tee tools/monty-bench/build/functions.log
+          tools/monty-bench/target/release/monty-compat | tee tools/monty-bench/build/compat.log
+          python tools/monty-bench/audit-wheel.py | tee tools/monty-bench/build/wasm-audit.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: monty-function-checks
+          path: |
+            tools/monty-bench/build/*.log
+            tools/monty-bench/build/wasm-audit/audit.json

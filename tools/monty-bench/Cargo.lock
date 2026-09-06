@@ -244,6 +244,8 @@ dependencies = [
  "monty",
  "monty-types",
  "reqwest",
+ "ruff_python_ast",
+ "ruff_python_parser",
  "serde_json",
  "tokio",
 ]
