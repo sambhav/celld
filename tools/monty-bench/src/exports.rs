@@ -179,7 +179,7 @@ impl Module {
                         .iter()
                         .any(|t| matches!(t,Expr::Name(n) if n.id.as_str()=="__all__")) =>
                 {
-                    if explicit.is_some() {
+                    if explicit.is_some() || a.targets.len() != 1 {
                         return Err("__all__ must be assigned once".into());
                     }
                     let values = match a.value.as_ref() {
@@ -299,7 +299,7 @@ impl Module {
     /// Generates a dependency-free client; optional defaults remain owned by the server.
     pub fn python_client(&self) -> String {
         let mut source = String::from(
-            "from __future__ import annotations\nimport json\nfrom typing import Any\nfrom urllib.parse import quote\nfrom urllib.request import Request, urlopen\n\n_celld_unset = object()\n\nclass Client:\n    def __init__(self, base_url: str, *, timeout: float = 30):\n        self._celld_url = base_url.rstrip('/')\n        self._celld_timeout = timeout\n\n    def _celld_call(self, name, args):\n        request = Request(self._celld_url + '/call/' + quote(name, safe=''), data=json.dumps(args).encode(), headers={'content-type': 'application/json'})\n        with urlopen(request, timeout=self._celld_timeout) as response:\n            return json.load(response)['result']\n",
+            "from __future__ import annotations\nimport json\nfrom typing import Any\nfrom urllib.parse import quote\nfrom urllib.request import Request, urlopen\n\n_celld_unset: Any = object()\n\nclass Client:\n    def __init__(self, base_url: str, *, timeout: float = 30):\n        self._celld_url = base_url.rstrip('/')\n        self._celld_timeout = timeout\n\n    def _celld_call(self, name, args):\n        request = Request(self._celld_url + '/call/' + quote(name, safe=''), data=json.dumps(args).encode(), headers={'content-type': 'application/json'})\n        with urlopen(request, timeout=self._celld_timeout) as response:\n            return json.load(response)['result']\n",
         );
         for (name, f) in &self.functions {
             let params = f
@@ -388,6 +388,7 @@ mod tests {
             "__all__=['_hidden']\ndef _hidden():pass",
             "__all__=['missing']",
             "__all__=list()",
+            "alias=__all__=['hello']\ndef hello():pass",
             "__all__=['x','x']\ndef x():pass",
             "def x(*args):pass",
         ] {

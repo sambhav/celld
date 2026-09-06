@@ -1,5 +1,9 @@
 # Monty feasibility experiment
 
+The [public-function prototype](FUNCTIONS.md) now exposes ordinary module
+functions, generates a Python client and tests async gather, strict inputs,
+stateful snapshot continuation and actual Pydantic wheel ABI requirements.
+
 [Measured results and engineering decision](results/2026-09-06.md): the native
 prototype reaches approximately celld TypeScript throughput at four threads,
 with much lower RSS, but is not yet a celld backend. Warm function costs do

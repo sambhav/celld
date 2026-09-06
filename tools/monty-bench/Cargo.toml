@@ -3,6 +3,7 @@ name = "celld-monty-experiment"
 version = "0.0.0"
 edition = "2024"
 publish = false
+default-run = "celld-monty-experiment"
 
 # Deliberately separate: this experiment does not add Monty to celld binaries.
 [workspace]

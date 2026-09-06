@@ -1,0 +1,2023 @@
+{
+  "compatibility": {
+    "probes": [
+      {
+        "error": "Traceback (most recent call last):\n  File \"probe.py\", line 1, in <module>\n    from pydantic import BaseModel\nModuleNotFoundError: No module named 'pydantic'",
+        "name": "pydantic_import",
+        "ok": false
+      },
+      {
+        "error": "Traceback (most recent call last):\n  File \"probe.py\", line 1, in <module>\n    import pydantic_core\nModuleNotFoundError: No module named 'pydantic_core'",
+        "name": "pydantic_core_import",
+        "ok": false
+      },
+      {
+        "error": "Traceback (most recent call last):\n  File \"probe.py\", line 1, in <module>\n    import helper\nModuleNotFoundError: No module named 'helper'",
+        "name": "local_python_import",
+        "ok": false
+      },
+      {
+        "error": "Traceback (most recent call last):\n  File \"probe.py\", line 2, in <module>\n    class Model(Base): pass\n    ~~~~~~~~~~~~~~~~~~~~~~~\nNotImplementedError: The monty syntax parser does not yet support class inheritance and metaclasses",
+        "name": "class_inheritance",
+        "ok": false
+      },
+      {
+        "error": "Traceback (most recent call last):\n  File \"probe.py\", line 1, in <module>\n    class Model(metaclass=type): pass\n    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\nNotImplementedError: The monty syntax parser does not yet support class inheritance and metaclasses",
+        "name": "metaclass",
+        "ok": false
+      },
+      {
+        "error": "Traceback (most recent call last):\n  File \"probe.py\", line 2, in <module>\n    f.__annotations__\nAttributeError: 'function' object has no attribute '__annotations__'",
+        "name": "get_annotations",
+        "ok": false
+      },
+      {
+        "name": "dataclass",
+        "ok": true,
+        "value": "Int(42)"
+      }
+    ],
+    "state_bytes": 454,
+    "stateful_function_restore": true,
+    "warm_direct_call": {
+      "Err": "Traceback (most recent call last):\n  File \"<python-input-1>\", line 1, in <module>\n    hello(...)\n    ~~~~~~~~~~\n  File \"<python-input-0>\", line 2, in hello\n    return isinstance(name,str)\n                           ~~~\nNameError: name '<global 1>' is not defined"
+    },
+    "warm_feed_batches": [
+      {
+        "calls_total": 1000,
+        "ns_per_call": 41349.072,
+        "snapshot_bytes": 59738
+      },
+      {
+        "calls_total": 2000,
+        "ns_per_call": 38547.127,
+        "snapshot_bytes": 118738
+      },
+      {
+        "calls_total": 3000,
+        "ns_per_call": 38609.418,
+        "snapshot_bytes": 177738
+      },
+      {
+        "calls_total": 4000,
+        "ns_per_call": 39155.992,
+        "snapshot_bytes": 236738
+      },
+      {
+        "calls_total": 5000,
+        "ns_per_call": 38829.567,
+        "snapshot_bytes": 295738
+      }
+    ],
+    "warm_feed_call": {
+      "Ok": "Bool(true)"
+    },
+    "warm_feed_snapshot_before": 2916
+  },
+  "functions": {
+    "concurrent_invocations": 32,
+    "exports": [
+      {
+        "async": false,
+        "name": "hello",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "type": "object"
+        }
+      },
+      {
+        "async": true,
+        "name": "quote",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": "object"
+        }
+      },
+      {
+        "async": true,
+        "name": "quotes",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {
+            "names": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "names"
+          ],
+          "type": "object"
+        }
+      },
+      {
+        "async": false,
+        "name": "total",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {
+            "prices": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "quantity": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "prices"
+          ],
+          "type": "object"
+        }
+      }
+    ],
+    "generated_client": true,
+    "private_functions_hidden": true,
+    "strict_types": true,
+    "upstream": {
+      "active": 0,
+      "completed": 129,
+      "peak": 15
+    }
+  },
+  "run_url": "https://github.com/sambhav/celld/actions/runs/34030580413",
+  "source": "396ad3a3e552ed69e7ac366b1172351782ed29e9",
+  "wasm": {
+    "cpython_imports": [
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyInterpreterState_Get"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyInterpreterState_GetID"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyList_New"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "_Py_Dealloc"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyTuple_New"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyImport_Import"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyUnicode_FromStringAndSize"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyDict_GetItemRef"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_RichCompare"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_IsTrue"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyDict_New"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyLong_FromUnsignedLongLong"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyDict_SetItem"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "Py_TYPE"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyLong_AsLongLong"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_GetAttr"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyErr_GivenExceptionMatches"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PySet_New"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_GenericSetAttr"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyEval_RestoreThread"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyDict_Next"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyUnicode_AsUTF8AndSize"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_Str"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyIter_Next"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyThreadState_Get"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyCallable_Check"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "_Py_CheckFunctionResult"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "_PyObject_MakeTpCall"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_Call"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_Vectorcall"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyEval_SaveThread"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_IsInstance"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyType_GetQualName"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_Hash"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_Repr"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyErr_WriteUnraisable"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyType_IsSubtype"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_GC_UnTrack"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyType_GenericAlloc"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_Init"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PySet_Add"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyFrozenSet_New"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyIter_Check"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PySet_Size"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyFloat_AsDouble"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyLong_AsLong"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PySequence_Check"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PySequence_Size"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_GetIter"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_Size"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyBytes_FromStringAndSize"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyFloat_FromDouble"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyList_AsTuple"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyTuple_GetItem"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyDict_Update"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyBytes_AsString"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyBytes_Size"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_VectorcallMethod"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyLong_FromLongLong"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyLong_FromLong"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyDict_Keys"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_Dir"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_IsSubclass"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_LengthHint"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyList_GetSlice"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyComplex_FromDoubles"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyNumber_TrueDivide"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyNumber_Remainder"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyDict_DelItem"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyUnicode_InternInPlace"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyErr_WarnEx"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyByteArray_AsString"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyByteArray_Size"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyDict_Contains"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_CallNoArgs"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PySet_Contains"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyException_SetCause"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyDict_Copy"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_GetItem"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyLong_FromUnsignedNativeBytes"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyType_GetName"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyList_GetItemRef"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PySequence_Contains"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyMapping_Items"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyNumber_Index"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyLong_AsNativeBytes"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyComplex_RealAsDouble"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyComplex_ImagAsDouble"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyList_Append"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyGILState_Release"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyDict_Clear"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyUnicode_New"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyUnicode_DATA"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyUnicode_EqualToUTF8AndSize"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyException_GetTraceback"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyTraceBack_Print"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "Py_IsInitialized"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "Py_IsFinalizing"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyUnicode_AsEncodedString"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyErr_GetRaisedException"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyErr_Print"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyErr_PrintEx"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyErr_SetRaisedException"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyErr_SetObject"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyErr_SetString"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyErr_NewExceptionWithDoc"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyGILState_Ensure"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyUnicodeDecodeError_Create"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyCapsule_Import"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyException_SetTraceback"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_SetAttrString"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyType_Freeze"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyModule_Create2"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyException_GetCause"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyType_FromSpec"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyLong_FromSsize_t"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_SetItem"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_DelItem"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_SetAttr"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyLong_AsUnsignedLongLong"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "_PyLong_FromByteArray"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyModule_GetNameObject"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyCMethod_New"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyType_GetModuleName"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyBool_Type"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "_Py_TrueStruct"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyFloat_Type"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyLong_Type"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyUnicode_Type"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyByteArray_Type"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "_Py_NoneStruct"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "_Py_FalseStruct"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_ValueError"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_AssertionError"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PySet_Type"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "_Py_EllipsisObject"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyComplex_Type"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyFrozenSet_Type"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.func",
+        "name": "PyType_GenericAlloc"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_TypeError"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyBaseObject_Type"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_Exception"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.func",
+        "name": "PyObject_Free"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.func",
+        "name": "PyObject_GC_Del"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.func",
+        "name": "PyObject_GenericSetDict"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.func",
+        "name": "PyObject_GenericGetDict"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyBytes_Type"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyFunction_Type"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_RecursionError"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyDict_Type"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyTuple_Type"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyList_Type"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_DeprecationWarning"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_UnicodeDecodeError"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_KeyError"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_RuntimeError"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_AttributeError"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_BaseExceptionGroup"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_NotImplementedError"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "_Py_NotImplementedStruct"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_UserWarning"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_SystemError"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_BaseException"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_ImportError"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_OverflowError"
+      }
+    ],
+    "exports": [
+      {
+        "kind": "function",
+        "name": "__wasm_call_ctors"
+      },
+      {
+        "kind": "function",
+        "name": "PyInit__pydantic_core"
+      },
+      {
+        "kind": "function",
+        "name": "__wasm_apply_data_relocs"
+      }
+    ],
+    "extension": "pydantic_core/_pydantic_core.cpython-314-wasm32-emscripten.so",
+    "imports": [
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyInterpreterState_Get"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyInterpreterState_GetID"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "malloc"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "free"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyList_New"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "_Py_Dealloc"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyTuple_New"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyImport_Import"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyUnicode_FromStringAndSize"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyDict_GetItemRef"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_RichCompare"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_IsTrue"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyDict_New"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyLong_FromUnsignedLongLong"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyDict_SetItem"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "Py_TYPE"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyLong_AsLongLong"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_GetAttr"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyErr_GivenExceptionMatches"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PySet_New"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_GenericSetAttr"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyEval_RestoreThread"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyDict_Next"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyUnicode_AsUTF8AndSize"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "posix_memalign"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_Str"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyIter_Next"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyThreadState_Get"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyCallable_Check"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "_Py_CheckFunctionResult"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "_PyObject_MakeTpCall"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_Call"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_Vectorcall"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "pthread_mutex_unlock"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "pthread_mutex_trylock"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "pthread_mutex_destroy"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyEval_SaveThread"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_IsInstance"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyType_GetQualName"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_Hash"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_Repr"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyErr_WriteUnraisable"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyType_IsSubtype"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "pthread_mutex_lock"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_GC_UnTrack"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyType_GenericAlloc"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_Init"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PySet_Add"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyFrozenSet_New"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyIter_Check"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PySet_Size"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyFloat_AsDouble"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyLong_AsLong"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PySequence_Check"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PySequence_Size"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_GetIter"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_Size"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyBytes_FromStringAndSize"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyFloat_FromDouble"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyList_AsTuple"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyTuple_GetItem"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyDict_Update"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyBytes_AsString"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyBytes_Size"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_VectorcallMethod"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyLong_FromLongLong"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyLong_FromLong"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyDict_Keys"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_Dir"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_IsSubclass"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_LengthHint"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyList_GetSlice"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyComplex_FromDoubles"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyNumber_TrueDivide"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyNumber_Remainder"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyDict_DelItem"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "calloc"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyUnicode_InternInPlace"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyErr_WarnEx"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyByteArray_AsString"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyByteArray_Size"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyDict_Contains"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_CallNoArgs"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PySet_Contains"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "realloc"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyException_SetCause"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyDict_Copy"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_GetItem"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyLong_FromUnsignedNativeBytes"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyType_GetName"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyList_GetItemRef"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PySequence_Contains"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyMapping_Items"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyNumber_Index"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyLong_AsNativeBytes"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyComplex_RealAsDouble"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyComplex_ImagAsDouble"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyList_Append"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyGILState_Release"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyDict_Clear"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "__errno_location"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "getentropy"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyUnicode_New"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyUnicode_DATA"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyUnicode_EqualToUTF8AndSize"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "pthread_cond_wait"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "pthread_cond_signal"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "_Unwind_RaiseException"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyException_GetTraceback"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyTraceBack_Print"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "Py_IsInitialized"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "Py_IsFinalizing"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyUnicode_AsEncodedString"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyErr_GetRaisedException"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyErr_Print"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyErr_PrintEx"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyErr_SetRaisedException"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyErr_SetObject"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyErr_SetString"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyErr_NewExceptionWithDoc"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyGILState_Ensure"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyUnicodeDecodeError_Create"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyCapsule_Import"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyException_SetTraceback"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_SetAttrString"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyType_Freeze"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyModule_Create2"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyException_GetCause"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyType_FromSpec"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyLong_FromSsize_t"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_SetItem"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_DelItem"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyObject_SetAttr"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyLong_AsUnsignedLongLong"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "_PyLong_FromByteArray"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyModule_GetNameObject"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyCMethod_New"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "PyType_GetModuleName"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "clock_gettime"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "strerror_r"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "pthread_mutexattr_init"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "pthread_mutexattr_settype"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "pthread_mutex_init"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "pthread_mutexattr_destroy"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "getcwd"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "write"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "writev"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "getenv"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "pthread_cond_destroy"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "abort"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "pthread_condattr_init"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "pthread_condattr_setclock"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "pthread_cond_init"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "pthread_condattr_destroy"
+      },
+      {
+        "kind": "function",
+        "module": "env",
+        "name": "_Unwind_DeleteException"
+      },
+      {
+        "kind": "global",
+        "module": "env",
+        "name": "__stack_pointer"
+      },
+      {
+        "kind": "global",
+        "module": "env",
+        "name": "__memory_base"
+      },
+      {
+        "kind": "global",
+        "module": "env",
+        "name": "__table_base"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyBool_Type"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "_Py_TrueStruct"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyFloat_Type"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyLong_Type"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyUnicode_Type"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyByteArray_Type"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "_Py_NoneStruct"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "_Py_FalseStruct"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_ValueError"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_AssertionError"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PySet_Type"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "_Py_EllipsisObject"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyComplex_Type"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyFrozenSet_Type"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.func",
+        "name": "PyType_GenericAlloc"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_TypeError"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyBaseObject_Type"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_Exception"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.func",
+        "name": "PyObject_Free"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.func",
+        "name": "PyObject_GC_Del"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.func",
+        "name": "PyObject_GenericSetDict"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.func",
+        "name": "PyObject_GenericGetDict"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyBytes_Type"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyFunction_Type"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_RecursionError"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyDict_Type"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyTuple_Type"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyList_Type"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_DeprecationWarning"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_UnicodeDecodeError"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_KeyError"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_RuntimeError"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_AttributeError"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_BaseExceptionGroup"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_NotImplementedError"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "_Py_NotImplementedStruct"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_UserWarning"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_SystemError"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_BaseException"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_ImportError"
+      },
+      {
+        "kind": "global",
+        "module": "GOT.mem",
+        "name": "PyExc_OverflowError"
+      },
+      {
+        "kind": "tag",
+        "module": "env",
+        "name": "__cpp_exception"
+      },
+      {
+        "kind": "memory",
+        "module": "env",
+        "name": "memory"
+      },
+      {
+        "kind": "table",
+        "module": "env",
+        "name": "__indirect_function_table"
+      }
+    ],
+    "url": "https://cdn.jsdelivr.net/pyodide/v314.0.6/full/pydantic_core-2.41.5-cp314-cp314-pyemscripten_2026_0_wasm32.whl",
+    "wasm_bytes": 4275289,
+    "wheel": "pydantic_core-2.41.5-cp314-cp314-pyemscripten_2026_0_wasm32.whl",
+    "wheel_sha256": "9802bd7a5e6679ec4c13be778f19f021e6147459c89cc916b913f7970f86dddb"
+  }
+}
