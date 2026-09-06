@@ -53,3 +53,10 @@ publication). These are not server dependencies of deployed Python workers.
 `results/2026-09-06-baseline.json` is the initial one-round diagnostic sweep,
 not the final repeated A/B. Use within-run comparisons; different GitHub runs
 can receive different CPU models even with the same runner label.
+
+The `profile-native-python` label runs a separate diagnostic call census using
+`sys.setprofile`. Its counts include coroutine resumptions and builtin calls.
+They identify repeated work, not CPU hotspots: Pyodide does not ship cProfile,
+and celld does not expose the process CPU clock needed by the stdlib profiler.
+The diagnostic's instrumented throughput is deliberately not reported as a
+performance result. See the `native-python-profile` Actions artifact.

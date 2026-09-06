@@ -1,4 +1,4 @@
-"""Diagnostic CPython call profile. Its instrumented throughput is not a benchmark."""
+"""Diagnostic call counts, not CPU timings or instrumented throughput claims."""
 import argparse
 import json
 import os
@@ -31,21 +31,27 @@ try:
         project = out / workload
         project.mkdir()
         shutil.copyfile(HERE/'worker.py', project/'app.py')
-        (project/'worker.py').write_text('''import profile, pstats, sys, time
+        (project/'worker.py').write_text('''import sys
 from app import Default as Application
 from workers import Response
-profiler = profile.Profile(timer=time.perf_counter)
+counts = {}
+def count_call(frame, event, arg):
+    if event == 'call':
+        code = frame.f_code
+        key = (code.co_filename, code.co_firstlineno, code.co_name)
+    elif event == 'c_call':
+        key = ('<builtin>', 0, getattr(arg, '__qualname__', type(arg).__name__))
+    else:
+        return
+    counts[key] = counts.get(key, 0) + 1
 class Default(Application):
     async def fetch(self, request):
         if request.method == 'GET':
             sys.setprofile(None)
-            stats = pstats.Stats(profiler)
-            rows = []
-            for (file, line, name), (primitive, calls, own, total, callers) in stats.stats.items():
-                rows.append(dict(file=file, line=line, name=name, calls=calls, self_seconds=own, total_seconds=total))
-            profiler.__init__(timer=time.perf_counter)
-            return Response.from_json(sorted(rows, key=lambda row: row['self_seconds'], reverse=True)[:50])
-        sys.setprofile(profiler.dispatcher)
+            rows = [dict(file=file, line=line, name=name, activations=n) for (file, line, name), n in counts.items()]
+            counts.clear()
+            return Response.from_json(sorted(rows, key=lambda row: row['activations'], reverse=True)[:80])
+        sys.setprofile(count_call)
         return await super().fetch(request)
 ''')
         config = dict(name='python-profile', main='worker.py', compatibility_date='2026-09-05',
