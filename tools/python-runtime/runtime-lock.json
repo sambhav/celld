@@ -1,0 +1,12 @@
+{
+  "pyodide": "314.0.6",
+  "runtime_files": {
+    "pyodide-lock.json": "3fdaef09e9e365c85e002737720f8d0ab8f278c1c244a2dde6a37663cf488ad4",
+    "pyodide.asm.mjs": "2ac5eba365ec12839c75c03b39b3be1dd63b798852cc460b014b52238be042f7",
+    "pyodide.asm.wasm": "3a0a00dfeaa348ac20f9ef09904233d32d33f644339662d4af368f8a2010f37a",
+    "pyodide.mjs": "69e3f6ccec3e14b465df60be577ca62f536251406b9a00cce019eac5252a2495",
+    "python_stdlib.zip": "80c5be6babfe03297069703410c3c29404dcf2525d2b128746bae5536f94831f"
+  },
+  "workers_sdk": "1.8.3",
+  "workers_source": "1611584709e4d303088e27c2843ec81faf122baa"
+}

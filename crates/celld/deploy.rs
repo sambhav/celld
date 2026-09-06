@@ -430,28 +430,36 @@ fn gzipped(modules: &[(String, Vec<u8>)]) -> usize {
 }
 
 pub fn build(options: &Options) -> anyhow::Result<Built> {
-    let config_path = resolve_config(options.config.clone())?;
-    let source = std::fs::read_to_string(&config_path)
-        .with_context(|| format!("read {}", config_path.display()))?;
-    let config: Value = serde_json::from_str(&strip_jsonc(&source))
-        .with_context(|| format!("parse {}", config_path.display()))?;
-    let config_path = if crate::python_build::is_python(config.get("main").and_then(Value::as_str)) {
-        crate::python_build::prepare(&config_path)?
-    } else {
-        config_path
-    };
+    build_with_hooks(options, &crate::build_hooks::NoBuildHooks)
+}
+
+pub fn build_with_hooks(options: &Options, hooks: &dyn crate::build_hooks::BuildHooks) -> anyhow::Result<Built> {
+    let config_path = hooks.prepare(&resolve_config(options.config.clone())?)?;
     let root = config_path
         .parent()
         .filter(|path| !path.as_os_str().is_empty())
         .map(Path::to_path_buf)
         .unwrap_or_else(|| PathBuf::from("."));
-    let project = read_project(&config_path, &root)?;
+    let mut project = read_project(&config_path, &root)?;
     let started = Instant::now();
     let built_assets = project.assets.as_ref().map(build_assets).transpose()?;
     let bundle = project
         .entry
         .as_deref()
         .map(|entry| {
+            let request = crate::build_hooks::BuildRequest {config: &config_path, root: &root, entrypoint: entry};
+            if let Some(output) = hooks.bundle(&request)? {
+                return Ok(output);
+            }
+            if crate::python::is_python(entry) {
+                if project.no_bundle {
+                    bail!("Python entrypoints cannot set no_bundle");
+                }
+                if project.do_classes.iter().any(|class| !is_reserved_class(class)) || project.has_workflows || !project.queue_consumers.is_empty() {
+                    bail!("The built-in Python backend currently supports fetch entrypoints; Python durable classes, workflows and queue consumers need an extension hook");
+                }
+                return crate::python::bundle(&root, entry, &project.metadata);
+            }
             if project.no_bundle {
                 // Already bundled by the caller's toolchain. Read it as it is;
                 // running esbuild over a Vite build is what corrupts it. A
@@ -469,6 +477,15 @@ pub fn build(options: &Options) -> anyhow::Result<Built> {
             }
         })
         .transpose()?;
+    let mut bundle = bundle;
+    if let Some(output) = bundle.as_mut() {
+        hooks.finish(output)?;
+    }
+    if project.entry.as_deref().is_some_and(crate::python::is_python) {
+        if let Some(flags) = project.metadata.get_mut("compatibility_flags").and_then(Value::as_array_mut) {
+            flags.retain(|flag| flag.as_str() != Some("python_workers"));
+        }
+    }
     let bundled_in = started.elapsed();
 
     // esbuild emits one JS module plus a copy of every wasm file the bundle
@@ -2118,10 +2135,7 @@ fn asset_content_type(path: &Path) -> Option<&'static str> {
 
 /// esbuild's outputs: the bundled entry module, and the wasm files its
 /// imports were resolved to (each under the name the rewritten import uses).
-struct BundleOutput {
-    bundle: Vec<u8>,
-    wasm: Vec<(String, Vec<u8>)>,
-}
+use crate::build_hooks::BundleOutput;
 
 fn run_esbuild(root: &Path, entry: &str) -> anyhow::Result<BundleOutput> {
     // node: builtins stay external. Wrangler polyfills them with unenv; celld

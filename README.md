@@ -332,3 +332,27 @@ publish the patch, in whole or in part, with or without attribution.
 
 See the [limitations](docs/limitations.md) and
 [security](docs/security.md) pages before operating a public fleet.
+
+## Built-in Python workers
+
+The fork accepts Cloudflare-style Python entrypoints directly:
+
+```python
+from workers import WorkerEntrypoint, Response
+
+class Default(WorkerEntrypoint):
+    async def fetch(self, request):
+        return Response("Hello from Python")
+```
+
+Set `main` to the `.py` file and add `python_workers` to `compatibility_flags`
+in `wrangler.jsonc`, then run `celld dev` or `celld deploy`. The binary embeds
+CPython/Pyodide, the Cloudflare workers SDK and an interpreter snapshot. It never
+launches pycelld, Python, Node or esbuild to build a Python worker. Declared
+Pyodide packages are checked and bundled by Rust; server nodes still need only
+celld and S3. See [the example and supported scope](examples/python).
+
+Extensions register generic in-process `BuildHooks` through
+`deploy::build_with_hooks` or `dev::run_with_hooks`. Hooks can replace a compiler
+or transform its output before hashing/publication. The built-in Python/JS
+backends remain the default.

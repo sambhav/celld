@@ -1,8 +1,6 @@
-from celld import App
-
-app = App
+from workers import Response, WorkerEntrypoint
 
 
-@app.function
-def hello(name: str = "world") -> str:
-    return f"Hello, {name}!"
+class Default(WorkerEntrypoint):
+    async def fetch(self, request):
+        return Response(f"Hello, {self.env.GREETING}!")

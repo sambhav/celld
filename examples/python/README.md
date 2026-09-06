@@ -1,27 +1,40 @@
-# Python Workers
-
-Install the companion [celld Python SDK](https://github.com/sambhav/celld-python)
-branch `feat/python-workers` and esbuild 0.25.12 on the build/development machine.
+# Built-in Cloudflare Python Workers
 
 ```sh
-python -m pip install 'celld @ git+https://github.com/sambhav/celld-python@feat/python-workers'
-npm install -g esbuild@0.25.12
-pycelld lock examples/python
 celld dev examples/python
-pycelld call hello name=Sam
 ```
 
-`celld dev` watches the original Python project. Valid edits are built and
-published; invalid edits keep the previous deployment. `celld deploy
-examples/python` uses the same compiler and the normal celld deployment flags.
-Set `CELLD_PYCELLD` to an explicit builder executable if needed (an executable
-path, never a shell command).
+Use the fork's binary. No Python, Node, esbuild, pip, or pycelld installation is
+needed to develop, deploy, or serve this worker. `celld deploy examples/python`
+uses the normal celld deployment flags and S3 storage.
 
-The builder emits a self-contained JS/WASM deployment with the pinned CPython
-runtime, compressed interpreter snapshot, locked packages, and generated client.
-Only celld and S3 are required on server nodes. Optional dependencies belong in
-`pyproject.toml`; use Pyodide-compatible wheels for native Python extensions.
+The default Python backend uses Cloudflare's `workers` SDK and CPython/Pyodide
+314.0.6, embedded in the binary with a compressed interpreter snapshot. Source
+edits rebuild in Rust; invalid Python syntax leaves the last deployment serving.
+Requests, responses and bindings cross the Pyodide FFI directly.
 
-This accepts Wrangler JSON/JSONC Python entrypoints. The app API is the celld
-function API; Cloudflare `WorkerEntrypoint`, arbitrary Cloudflare bindings and
-unmodified Wrangler's Python upload format are not supported by this adapter.
+Declare packages under `[project].dependencies` in `pyproject.toml`, e.g.
+`dependencies = ["pydantic>=2.12,<3", "numpy>=2"]`. The compiler resolves against
+the pinned Pyodide catalog, checks version constraints and target markers, and
+bundles the matching WASM wheels and their catalog dependencies. Downloaded
+packages are cached by checksum under `.celld/python-cache`. Deployment nodes
+perform no package downloads. Package extras, URL requirements and custom wheels
+currently need a compiler extension.
+
+This first built-in backend supports the default `WorkerEntrypoint.fetch`
+handler, request/response helpers, outbound `workers.fetch`, vars and compatible
+native binding objects. Python Durable Object classes, queue consumers and
+Workflow entrypoints are not yet wired into the dispatcher. Unsupported entrypoint
+configurations fail during bundling. A matching API surface does not imply every
+Cloudflare service is provided by celld.
+
+The separate `celld` Python SDK provides the function/decorator API, Pydantic DI,
+generated clients and state primitives. Its CLI owns that build workflow; celld
+never invokes it. Extensions can register in-process Rust `BuildHooks` through
+`deploy::build_with_hooks` and `dev::run_with_hooks`. Hooks can prepare a project,
+replace a compiler, or transform output before deployment hashing/publication.
+The built-in Python/JS compilers are the defaults when hooks return `None`.
+
+To build celld itself from source, install Rust, Python 3.11+, and Node/npm.
+The Cargo build script prepares and verifies the embedded runtime assets once.
+These tools are not needed with the resulting binary.

@@ -281,6 +281,10 @@ fn options_from_arguments(arguments: Vec<String>) -> anyhow::Result<Option<Optio
 
 #[allow(clippy::disallowed_methods)] // Project resolution uses the operator's host filesystem.
 pub async fn run(arguments: Vec<String>) -> anyhow::Result<()> {
+    run_with_hooks(arguments, &crate::build_hooks::NoBuildHooks).await
+}
+
+pub async fn run_with_hooks(arguments: Vec<String>, hooks: &dyn crate::build_hooks::BuildHooks) -> anyhow::Result<()> {
     let Some(options) = options_from_arguments(arguments)? else {
         print_help()?;
         return Ok(());
@@ -314,6 +318,7 @@ pub async fn run(arguments: Vec<String>) -> anyhow::Result<()> {
         &project_hash,
         &store,
         &console,
+        hooks,
     )
     .await
 }
@@ -339,16 +344,16 @@ async fn open_store(state: &Path, console: &Console) -> anyhow::Result<Store> {
     Ok(Store { database })
 }
 
-async fn deploy_project(config: &Path, store: &Store, logs: bool) -> anyhow::Result<()> {
+async fn deploy_project(config: &Path, store: &Store, logs: bool, hooks: &dyn crate::build_hooks::BuildHooks) -> anyhow::Result<()> {
     let bucket = open_local_bucket(&store.database)?;
-    let built = deploy::build(&deploy::Options {
+    let built = deploy::build_with_hooks(&deploy::Options {
         config: Some(config.to_path_buf()),
         bucket: None,
         endpoint: None,
         region: None,
         dry_run: false,
         json: false,
-    })?;
+    }, hooks)?;
     if logs {
         built.report();
     }
@@ -363,6 +368,7 @@ async fn run_stack(
     project_hash: &str,
     store: &Store,
     console: &Console,
+    hooks: &dyn crate::build_hooks::BuildHooks,
 ) -> anyhow::Result<()> {
     // Install both handlers before the child can become ready. A caller can
     // send SIGTERM as soon as the readiness request answers, and installing a
@@ -375,7 +381,7 @@ async fn run_stack(
     let mut watcher = ProjectWatcher::new(project)?;
 
     console.progress("building the application");
-    deploy_project(config, store, logs).await?;
+    deploy_project(config, store, logs, hooks).await?;
     let mut running = start_node(state, listener, logs, project_hash, store, console).await?;
 
     loop {
@@ -393,7 +399,7 @@ async fn run_stack(
             }
             NodeEvent::Reload => {
                 console.progress("change detected; rebuilding the application");
-                if let Err(error) = deploy_project(config, store, logs).await {
+                if let Err(error) = deploy_project(config, store, logs, hooks).await {
                     console.failure(&format!("reload failed: {error:#}"));
                     continue;
                 }
