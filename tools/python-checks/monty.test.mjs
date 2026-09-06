@@ -88,3 +88,18 @@ test('sync cannot wait for durability from inside its own transaction',async()=>
   await assert.rejects(new Class({storage,blockConcurrencyWhile:f=>f()},{}).increment({}),/transaction stopped/);
   assert.match(observed,/not allowed inside a storage transaction/);
 });
+
+test('keyed function calls route to native objects and cannot supply Python context',async()=>{
+  const calls=[];
+  globalThis.__monty=()=>{assert.fail('keyed call must run on its object')};
+  const worker=createMontyWorker('',manifest);
+  const env={__CELLD_FUNCTIONS:{getByName(key){return {async invoke(call){calls.push({key,...call});return 7}}}}};
+  const request=new Request('http://local/increment',{method:'POST',headers:{'x-celld-object':encodeURIComponent('a/東京'),'x-celld-context':'{"actor":"test"}'},body:'{"amount":2}'});
+  assert.equal((await (await worker.fetch(request,env,{})).json()).result,7);
+  assert.equal(calls[0].key,'a/東京');
+  assert.deepEqual(calls[0].args,{amount:2});
+  assert.deepEqual(calls[0].caller.caller,{actor:'test'});
+  const bad=new Request('http://local/increment',{method:'POST',headers:{'x-celld-object':''},body:'{}'});
+  assert.equal((await worker.fetch(bad,env,{})).status,422);
+  assert.equal(calls.length,1);
+});

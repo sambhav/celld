@@ -46,14 +46,12 @@ impl Session {
     }
     pub fn resume(&mut self, reply: Value) -> Result<Value, String> {
         let call = self.pending.take().ok_or("session is not suspended")?;
-        if reply.to_string().len() > 1024 * 1024 {
+        let reply = reply.to_string();
+        if reply.len() > 1024 * 1024 {
             return Err("host result exceeds 1 MiB".into());
         }
         let progress = call
-            .resume(
-                MontyObject::String(reply.to_string()),
-                PrintWriter::Disabled,
-            )
+            .resume(MontyObject::String(reply), PrintWriter::Disabled)
             .map_err(|e| e.to_string())?;
         self.advance(progress)
     }
@@ -107,6 +105,57 @@ impl Session {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn optional_context_supports_keywords_classes_and_cross_object_calls() {
+        let module = exports::Module::compile("def plain(value:int=1): return value\ndef info(*,ctx): return ctx.name\nasync def forward(ctx): return await ctx.object('other').call('plain',value=2)\n").unwrap();
+        let manifest = module.manifest();
+        let functions = manifest.as_array().unwrap();
+        assert_eq!(
+            functions.iter().find(|f| f["name"] == "plain").unwrap()["context"],
+            false
+        );
+        assert_eq!(
+            functions.iter().find(|f| f["name"] == "info").unwrap()["parameters"]["properties"],
+            json!({})
+        );
+        assert_eq!(
+            Session::start(module.get("plain").unwrap(), &json!({}), &json!({}))
+                .unwrap()
+                .1["result"],
+            1
+        );
+        assert_eq!(
+            Session::start(
+                module.get("info").unwrap(),
+                &json!({}),
+                &json!({"name":"key"})
+            )
+            .unwrap()
+            .1["result"],
+            "key"
+        );
+        let (mut session, event) =
+            Session::start(module.get("forward").unwrap(), &json!({}), &json!({})).unwrap();
+        assert_eq!(event["operation"], "object.call");
+        assert_eq!(
+            event["args"],
+            json!(["__CELLD_FUNCTIONS","other","plain",{"value":2}])
+        );
+        assert_eq!(session.resume(json!({"result":2})).unwrap()["result"], 2);
+        let class =
+            exports::Module::entry("class Default:\n    def info(self,*,ctx): return ctx.name\n")
+                .unwrap();
+        assert_eq!(
+            Session::start(
+                class.get("info").unwrap(),
+                &json!({}),
+                &json!({"name":"class-key"})
+            )
+            .unwrap()
+            .1["result"],
+            "class-key"
+        );
+    }
     #[test]
     fn classes_export_public_methods_and_construct_with_context() {
         let source = "class Counter:\n    def __init__(self, ctx): self.ctx=ctx\n    def add(self, amount:int=1): return self.ctx.storage.get('n',0)+amount\n    def _private(self): pass\n";

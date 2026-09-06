@@ -148,10 +148,6 @@ impl Function {
             .start(
                 vec![
                     MontyObject::String(Value::Object(args.clone()).to_string()),
-                    MontyObject::Function {
-                        name: "_fetch_json".into(),
-                        docstring: None,
-                    },
                     MontyObject::String(context.to_string()),
                     MontyObject::Function {
                         name: "_celld_host".into(),
@@ -415,7 +411,6 @@ impl Module {
                 "app.py",
                 vec![
                     "_celld_args".into(),
-                    "_fetch_json".into(),
                     "_celld_metadata".into(),
                     "_celld_host".into(),
                 ],
@@ -563,35 +558,6 @@ mod tests {
         let f = m.get("total").unwrap();
         assert_eq!(result(f, json!({"items":[{"n":2},{"n":3}]})), json!(5));
         assert!(f.start(&json!({"items":[{"n":true}]})).is_err());
-    }
-    #[test]
-    fn async_host_call_resumes() {
-        let m =
-            Module::compile("async def price(name:str): return await _fetch_json(name)").unwrap();
-        let RunProgress::FunctionCall(c) = m
-            .get("price")
-            .unwrap()
-            .start(&json!({"name":"Ada"}))
-            .unwrap()
-        else {
-            panic!()
-        };
-        assert_eq!(c.args, vec![MontyObject::String("Ada".into())]);
-        let id = c.call_id;
-        let RunProgress::ResolveFutures(p) = c.resume_pending(PrintWriter::Disabled).unwrap()
-        else {
-            panic!()
-        };
-        let RunProgress::Complete(MontyObject::String(s)) = p
-            .resume(
-                vec![(id, MontyObject::Int(42).into())],
-                PrintWriter::Disabled,
-            )
-            .unwrap()
-        else {
-            panic!()
-        };
-        assert_eq!(s, "42");
     }
     #[test]
     fn globals_are_fresh_and_inputs_cannot_choose_code() {

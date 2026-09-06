@@ -1,0 +1,62 @@
+name: Native Monty comparison
+on:
+  pull_request:
+    types: [labeled]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  measure:
+    if: startsWith(github.event.label.name, 'benchmark-native-monty-')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.7'
+          cache: false
+      - name: Resolve successful native build for this exact head
+        id: build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python - <<'PY'
+          import json, os, urllib.request
+          url=f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}/actions/workflows/python.yml/runs?event=pull_request&head_sha={os.environ['HEAD_SHA']}&status=success"
+          request=urllib.request.Request(url,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN']})
+          with urllib.request.urlopen(request) as r: runs=json.load(r)['workflow_runs']
+          assert runs, 'Run the native correctness workflow successfully before labeling this commit'
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f: f.write('run='+str(runs[0]['id'])+'\n')
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-native
+          path: native-bin
+          run-id: ${{ steps.build.outputs.run }}
+          github-token: ${{ github.token }}
+      - run: |
+          chmod +x native-bin/celld
+          npm install -g esbuild@0.25.12
+      - run: go test ./...
+        working-directory: tools/python-bench/load
+      - name: Same-binary same-runner matched workloads
+        env:
+          CELLD_NATIVE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python tools/python-bench/measure.py --binary native-bin/celld --baseline-runtime native-bin/python-runtime --variants typescript,monty,pyodide --rounds 2 --seconds 5 --clients 32,128 --isolates 1,2,4 --delays 10
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: monty-native-measurements
+          path: |
+            tools/python-bench/build/**/measurements.json
+            tools/python-bench/build/**/*.log

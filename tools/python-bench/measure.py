@@ -119,12 +119,18 @@ def main():
                 shutil.copyfile(HERE/entry,project/entry)
                 config={'name':'native-benchmark','main':entry,'compatibility_date':'2026-09-05',
                     'vars':{'UPSTREAM':f'http://{address}/price?delay_ms={delay}' if workload=='io' else ''}}
-                if python: config['compatibility_flags']=['python_workers']
+                if variant == 'monty':
+                    config['python_runtime'] = 'monty'
+                    if workload == 'hello':
+                        (project/entry).write_text("def hello(name: str):\n    if not 1 <= len(name) <= 128: raise ValueError('invalid name')\n    return 'Hello, ' + name\n")
+                    else:
+                        shutil.copyfile(HERE/'monty.py',project/entry)
+                elif python: config['compatibility_flags']=['python_workers']
                 (project/'wrangler.json').write_text(json.dumps(config))
                 env={key:value for key,value in os.environ.items() if not key.startswith('CELLD_')}
                 runtime=args.candidate_runtime if variant=='candidate' else args.baseline_runtime
                 env.update(CELLD_V8_HEAP_LIMIT_MB='256',CELLD_MODULE_CACHE=str(out/'module-cache'))
-                if python: env['CELLD_PYTHON_RUNTIME']=str(runtime.resolve())
+                if python and variant != 'monty': env['CELLD_PYTHON_RUNTIME']=str(runtime.resolve())
                 published=publish(binary,project,out/(project.name+'-publish.log'),env)
                 projects[variant]=(project,env,published)
             for isolates in map(int,args.isolates.split(',')):
@@ -153,7 +159,22 @@ def main():
                                 state=http(f'http://{internal}/state')
                                 row.update(variant=variant,workload=workload,delay_ms=delay,isolates=isolates,round=round_,
                                     deploy_ready_ms=published,native_ready_ms=ready,first_request_ms=first,
-                                    rss_bytes=state['rss_bytes'],in_use_bytes=state['in_use_bytes'],upstream=stats)
+                                    rss_bytes=state['rss_bytes'],in_use_bytes=state['in_use_bytes'],upstream=stats, runtime_state=state)
+                                if workload == 'hello' and isolates == 1 and clients == int(args.clients.split(',')[0]) and round_ == 0:
+                                    idle_start = time.perf_counter()
+                                    deadline = time.monotonic()+40
+                                    while time.monotonic()<deadline:
+                                        content=log.read_text()
+                                        if content.count('isolate started') == content.count('isolate freed') and 'isolate freed' in content:
+                                            break
+                                        time.sleep(.1)
+                                    else: raise AssertionError('idle worker did not scale to zero: '+log.read_text()[-3000:])
+                                    row['idle_scale_to_zero_ms']=(time.perf_counter()-idle_start)*1000
+                                    before=log.read_text().count('isolate started')
+                                    start=time.perf_counter()
+                                    assert http(f'http://127.0.0.1:{port}/hello',{'name':'wake'}) == {'result':'Hello, wake'}
+                                    row['wake_request_ms']=(time.perf_counter()-start)*1000
+                                    assert log.read_text().count('isolate started') > before, 'wake did not create a new isolate'
                                 record(row)
         report['summary']=[]
         groups={(r['variant'],r['workload'],r['delay_ms'],r['isolates'],r['clients']) for r in report['samples']}
