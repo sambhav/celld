@@ -1,6 +1,6 @@
-# Fork configuration and native binaries
+# Host configuration and native binaries
 
-This fork adds optional CPU cell density and S3 ETag spelling settings to celld
+The host-options patch adds optional CPU cell density and S3 ETag spelling settings to celld
 0.4.0. Neither changes the storage protocol or adds an external dependency.
 
 ## Ceph and S3 ETag compatibility
@@ -52,13 +52,14 @@ writes, ambiguous responses, and unsafe tokens. They do not claim validation
 against a live Ceph deployment.
 
 ```sh
+cargo xtask prepare
 cargo test --manifest-path tools/packing-checks/Cargo.toml --locked
 python3 tools/storage-checks/probe.py target/release/celld -v
 ```
 
 ## Download and release binaries
 
-The **Fork binaries** workflow builds native release binaries for:
+The **Native binaries** workflow builds native release binaries for:
 
 - Linux x86-64 and ARM64 (GNU/glibc, built on Ubuntu 22.04).
 - macOS Intel and Apple Silicon (built on macOS 15 and 14 respectively).
@@ -72,7 +73,7 @@ Actions button to be available.
 Each draft is named `v<celld-version>-fork.<commit-prefix>` and targets the exact
 source commit used by every build. The workflow never moves `main`, replaces a
 release, or overwrites a published tag. Review the draft in GitHub Releases and
-publish it when ready. This fork workflow publishes native binaries; it has no
+publish it when ready. This workflow publishes native binaries; it has no
 upstream container registry destination.
 
 The release includes four `celld-<target>.gz` files, `SHA256SUMS`,

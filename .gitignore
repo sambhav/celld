@@ -1,4 +1,6 @@
-.DS_Store
-.celld/
 /target/
+/xtask/target/
+.celld/
 __pycache__/
+.mypy_cache/
+.DS_Store

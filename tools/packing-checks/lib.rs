@@ -1,11 +1,11 @@
 //! Compile the production parser and placement core directly, without V8.
 #![allow(dead_code)]
 
-#[path = "../../crates/celld/env_vars.rs"]
+#[path = "../../target/celld/crates/celld/env_vars.rs"]
 mod env_vars;
-#[path = "../../crates/logic/isolate.rs"]
+#[path = "../../target/celld/crates/logic/isolate.rs"]
 mod isolate;
-#[path = "../../crates/celld/s3_etag.rs"]
+#[path = "../../target/celld/crates/celld/s3_etag.rs"]
 mod s3_etag;
 
 #[cfg(test)]

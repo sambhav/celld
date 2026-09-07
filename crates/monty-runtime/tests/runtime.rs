@@ -1,10 +1,10 @@
-use celld_monty::{
+use crate::{
     Session,
     exports::{Module, durable_classes},
 };
 use serde_json::{Value, json};
 
-fn call(source: &str, name: &str, args: Value) -> celld_monty::value::HttpResponse {
+fn call(source: &str, name: &str, args: Value) -> crate::value::HttpResponse {
     let module = Module::compile(source).unwrap();
     let (mut session, event) =
         Session::start(module.get(name).unwrap(), &args, &json!({})).unwrap();
@@ -139,7 +139,7 @@ fn direct_class_calls_suspend_as_rpc_and_constructor_receives_owner_context() {
     let result = session.resume(json!({"result":null})).unwrap();
     let value = serde_json::from_str(result["wire"].as_str().unwrap()).unwrap();
     assert_eq!(
-        celld_monty::value::to_json(&value).unwrap(),
+        crate::value::to_json(&value).unwrap(),
         json!({"id":"cart/東京","value":2})
     );
     assert!(result.get("response").is_none());
@@ -244,7 +244,7 @@ fn context_clock_and_alarm_read_return_aware_datetimes() {
         let (mut session, _) =
             Session::start(module.get("run").unwrap(), &json!({}), &json!({})).unwrap();
         let event = session
-            .resume(celld_monty::value::timestamp_reply(3000).unwrap())
+            .resume(crate::value::timestamp_reply(3000).unwrap())
             .unwrap();
         assert_eq!(event["done"], true);
         assert_eq!(body(&mut session), "\"1970-01-01T00:00:03+00:00\"");
