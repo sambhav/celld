@@ -310,8 +310,14 @@ pub fn interval_at(start_ms: u64, period: Duration) -> Interval {
     }
 }
 
-/// The output of one asynchronous JavaScript operation.
+/// The output of one asynchronous worker operation.
 pub enum OpOut {
+    Monty(serde_json::Value),
+    MontyFetch {
+        status: u16,
+        headers: serde_json::Value,
+        body: Vec<u8>,
+    },
     Str(String),
     Bytes(Vec<u8>),
 }

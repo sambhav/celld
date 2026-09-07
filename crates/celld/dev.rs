@@ -149,10 +149,11 @@ impl ProjectWatcher {
                 .context("the project watcher stopped")?
             {
                 Ok(event)
-                    if event
-                        .paths
-                        .iter()
-                        .any(|path| !ignored_project_path(&self.project, path)) =>
+                    if !event.kind.is_access()
+                        && event
+                            .paths
+                            .iter()
+                            .any(|path| !ignored_project_path(&self.project, path)) =>
                 {
                     return Ok(())
                 }
@@ -176,6 +177,8 @@ fn ignored_project_path(project: &Path, path: &Path) -> bool {
         ".svn",
         ".turbo",
         ".yarn",
+        ".venv",
+        "__pycache__",
         "bower_components",
         "coverage",
         "node_modules",

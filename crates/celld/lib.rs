@@ -326,6 +326,8 @@ pub mod control_plane;
 pub mod d1_cli;
 pub mod dead_node_gc;
 pub mod deploy;
+mod python;
+mod monty_host;
 pub mod dev;
 pub mod drain_token;
 pub mod env_vars;

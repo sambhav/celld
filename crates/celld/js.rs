@@ -1485,6 +1485,9 @@ fn resolve_res(tc: &mut v8::PinScope, id: u64, res: Result<asyncrt::OpOut, Strin
             let s = v8::String::new(tc, &v).unwrap();
             r.resolve(tc, s.into());
         }
+        Ok(asyncrt::OpOut::Monty(_) | asyncrt::OpOut::MontyFetch { .. }) => {
+            unreachable!("Monty operations have a native driver")
+        }
         Ok(asyncrt::OpOut::Bytes(b)) => {
             let v = bytes_value(tc, b);
             r.resolve(tc, v);
@@ -1788,6 +1791,10 @@ pub struct WorkerConfig {
     /// isolate built from it carries the value as a slot, so its host calls
     /// resolve against the deployment graph it was built with.
     pub generation: crate::generation::GenerationId,
+    /// Compile Python once per configuration. Monty programs are Send but not
+    /// Sync; each pool slot clones the cached template under this mutex and
+    /// subsequently executes its own copy under the pool's turn permit.
+    monty_program: OnceLock<Result<Mutex<monty_worker::Program>, String>>,
     /// The external (`node:*`/`cloudflare:*`) imports of `src`.
     ///
     /// The scan walks the whole bundle, which an esbuild artifact makes
@@ -1852,7 +1859,11 @@ impl WorkerConfig {
             modules,
             compat,
         } = options;
-        let main_imports = modules::scan_external_imports(&src);
+        let main_imports = if src.starts_with(crate::python::MAGIC) {
+            Default::default()
+        } else {
+            modules::scan_external_imports(&src)
+        };
         let module_imports = es_module_sources(&modules)
             .map(|(_name, source)| modules::scan_external_imports(source))
             .collect();
@@ -1888,6 +1899,7 @@ impl WorkerConfig {
             loader_env: None,
             crons: Vec::new(),
             generation: 0,
+            monty_program: OnceLock::new(),
             main_imports,
             module_imports,
         }
@@ -1967,7 +1979,7 @@ pub struct CellStorage<'a> {
     pub epoch: u64,
 }
 
-pub struct Worker {
+pub struct JsWorker {
     inner: Option<WorkerIsolate>,
 }
 
@@ -2094,7 +2106,7 @@ struct Entered<'s> {
     fetch: v8::Local<'s, v8::Function>,
 }
 
-impl std::ops::Deref for Worker {
+impl std::ops::Deref for JsWorker {
     type Target = WorkerIsolate;
 
     fn deref(&self) -> &Self::Target {
@@ -2102,7 +2114,7 @@ impl std::ops::Deref for Worker {
     }
 }
 
-impl std::ops::DerefMut for Worker {
+impl std::ops::DerefMut for JsWorker {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.inner.as_mut().expect("Worker isolate unavailable")
     }
@@ -2654,10 +2666,9 @@ pub fn drop_next_gated_reply_task_for_test() {
 }
 
 pub struct InFlight {
-    /// The handler's promise. A `Global` because it outlives the turn that
-    /// created it: Locals never cross a turn, exactly as workerd's
-    /// `Worker::Lock` never does.
-    promise: v8::Global<v8::Promise>,
+    /// A JavaScript handler's promise. Monty keeps its continuation in
+    /// `native`; both backends share timing, cancellation and pool accounting.
+    promise: Option<v8::Global<v8::Promise>>,
     context: Arc<IoContext>,
     /// The cell this event belongs to, and `None` for stateless work.
     ///
@@ -2694,7 +2705,8 @@ pub struct InFlight {
     failure: Option<String>,
     /// The isolate this entry's ops belong to, so `abandon` can drop their
     /// resolvers without a scope to reach the isolate through.
-    runtime_state: Arc<ActorRuntimeState>,
+    runtime_state: Option<Arc<ActorRuntimeState>>,
+    native: Option<monty_worker::Execution>,
 }
 
 impl InFlight {
@@ -2812,6 +2824,7 @@ impl InFlight {
     /// handler's. A handler that threw is recorded by `settle`, which
     /// knows that it did, before it reaches this.
     fn fail(&mut self, error: anyhow::Error) {
+        self.native.take();
         if let Some(reply) = self.reply.take() {
             if self.trace.is_some() {
                 self.failure = Some(crate::telemetry::cap_error(error.to_string()));
@@ -2935,13 +2948,23 @@ impl InFlight {
     /// continues after the client has been served and is not charged for the
     /// time the handler already spent.
     pub fn remaining(&self, budget: Duration) -> Option<Duration> {
-        self.reply
-            .is_some()
-            .then(|| budget.saturating_sub(self.started.elapsed()))
+        self.reply.is_some().then(|| {
+            let budget = if self.native.is_some() && self.scope.is_some() {
+                budget.min(Duration::from_secs(30))
+            } else {
+                budget
+            };
+            budget.saturating_sub(self.started.elapsed())
+        })
     }
 
     /// Give up on a handler that will not settle.
     pub fn time_out(&mut self, budget: Duration) {
+        let budget = if self.native.is_some() && self.scope.is_some() {
+            budget.min(Duration::from_secs(30))
+        } else {
+            budget
+        };
         self.fail(anyhow!("handler exceeded {}s budget", budget.as_secs()));
     }
 
@@ -2988,7 +3011,11 @@ impl InFlight {
         if self.ops.is_empty() {
             return;
         }
-        let mut promises = self.runtime_state.promises.lock().unwrap();
+        let Some(state) = &self.runtime_state else {
+            self.ops.clear();
+            return;
+        };
+        let mut promises = state.promises.lock().unwrap();
         for id in self.ops.drain() {
             promises.remove(&id);
         }
@@ -3174,7 +3201,7 @@ pub(crate) fn current_trace_ids(scope: &mut v8::PinScope) -> Option<crate::telem
 /// isolate goes through one of these, and none of them may be held across an
 /// await: the caller takes the pool's async permit first, runs a turn, and
 /// leaves.
-impl Worker {
+impl JsWorker {
     /// Run a request's first turn.
     ///
     /// Returns what is now in flight — `None` when nothing is, the reply
@@ -3204,7 +3231,11 @@ impl Worker {
                 // A handler that returned an already-resolved promise is
                 // finished before it ever suspends, and must not wait for an
                 // op it will never start.
-                let ops = finish_turn(tc, &mut entry);
+                let ops = if entry.promise.is_some() {
+                    finish_turn(tc, &mut entry)
+                } else {
+                    Vec::new()
+                };
                 (Some(*entry), ops)
             }
             Begun::Threw(answer) => {
@@ -3406,8 +3437,9 @@ fn begin<'s>(
         Ok((promise, active_request_id)) => {
             tc.perform_microtask_checkpoint();
             let entry = InFlight {
-                runtime_state: actor_runtime_state(tc),
-                promise: v8::Global::new(tc, promise),
+                runtime_state: Some(actor_runtime_state(tc)),
+                native: None,
+                promise: Some(v8::Global::new(tc, promise)),
                 context,
                 scope: None,
                 writes_before: None,
@@ -3474,8 +3506,9 @@ fn begin_entrypoint_rpc(
         Ok(promise) => {
             tc.perform_microtask_checkpoint();
             let entry = InFlight {
-                runtime_state: actor_runtime_state(tc),
-                promise: v8::Global::new(tc, promise),
+                runtime_state: Some(actor_runtime_state(tc)),
+                native: None,
+                promise: Some(v8::Global::new(tc, promise)),
                 context,
                 scope: None,
                 writes_before: None,
@@ -3704,8 +3737,9 @@ fn begin_queue(
         Ok(promise) => {
             tc.perform_microtask_checkpoint();
             let entry = InFlight {
-                runtime_state: actor_runtime_state(tc),
-                promise: v8::Global::new(tc, promise),
+                runtime_state: Some(actor_runtime_state(tc)),
+                native: None,
+                promise: Some(v8::Global::new(tc, promise)),
                 context,
                 scope: None,
                 writes_before: None,
@@ -3854,8 +3888,9 @@ fn start_cell_event<'s>(
         Ok(promise) => {
             tc.perform_microtask_checkpoint();
             let entry = InFlight {
-                runtime_state: runtime_state.clone(),
-                promise: v8::Global::new(tc, promise),
+                runtime_state: Some(runtime_state.clone()),
+                native: None,
+                promise: Some(v8::Global::new(tc, promise)),
                 context,
                 scope: Some(scope.to_string()),
                 writes_before,
@@ -3895,8 +3930,9 @@ fn start_cell_event<'s>(
                 let promise = resolved_promise(tc, undefined)
                     .expect("a finishing cell event can create a resolved promise");
                 Begun::Running(Box::new(InFlight {
-                    runtime_state,
-                    promise: v8::Global::new(tc, promise),
+                    runtime_state: Some(runtime_state),
+                    native: None,
+                    promise: Some(v8::Global::new(tc, promise)),
                     context,
                     scope: Some(scope.to_string()),
                     writes_before,
@@ -4278,7 +4314,13 @@ fn cancel(tc: &mut v8::PinScope, entry: &mut InFlight) {
 /// `waitUntil` work once that settles too.
 fn settle(tc: &mut v8::PinScope, entry: &mut InFlight) {
     if entry.reply.is_some() {
-        let promise = v8::Local::new(tc, &entry.promise);
+        let promise = v8::Local::new(
+            tc,
+            entry
+                .promise
+                .as_ref()
+                .expect("pending JS answer has a promise"),
+        );
         match promise.state() {
             v8::PromiseState::Pending => {}
             v8::PromiseState::Fulfilled => {
@@ -4384,7 +4426,7 @@ enum Started<'s> {
     Threw,
 }
 
-impl Worker {
+impl JsWorker {
     /// Compile the worker module, wire the DO harness, and extract the entry
     /// `fetch`. `do_classes` come from the manifest; `bindings` maps a binding
     /// name to a DO class name (from wrangler metadata).
@@ -4392,11 +4434,11 @@ impl Worker {
     /// The runtime builds a `WorkerConfig` directly. This cfg-gated helper
     /// constructs the same value from individual options.
     #[cfg(celld_internal_tests)]
-    pub fn load(options: WorkerConfigOptions) -> Result<Worker> {
+    pub fn load(options: WorkerConfigOptions) -> Result<JsWorker> {
         Self::load_config(Arc::new(WorkerConfig::new(options)))
     }
 
-    pub fn load_config(config: Arc<WorkerConfig>) -> Result<Worker> {
+    pub fn load_config(config: Arc<WorkerConfig>) -> Result<JsWorker> {
         let src = config.src.as_str();
         let script_name = config.script_name.as_str();
         let do_classes = config.do_classes.as_slice();
@@ -4630,7 +4672,7 @@ impl Worker {
             }
             (v8::Global::new(scope, context), v8::Global::new(scope, f))
         };
-        Ok(Worker {
+        Ok(JsWorker {
             inner: Some(WorkerIsolate {
                 // Every setup scope above has closed, so nothing is entered
                 // on top of this isolate and it can be handed over.
@@ -6294,7 +6336,7 @@ fn op_fetch(
         }
     };
     let raw_headers = args.get(3).to_rust_string_lossy(scope);
-    let mut headers: Vec<(String, String)> = match serde_json::from_str(&raw_headers) {
+    let headers: Vec<(String, String)> = match serde_json::from_str(&raw_headers) {
         Ok(headers) => headers,
         // Same failure as the body: dropping the headers silently sent an
         // unauthenticated, unrouted request in place of the real one.
@@ -6306,21 +6348,63 @@ fn op_fetch(
         }
     };
     let redirect = args.get(4).to_rust_string_lossy(scope);
-    let mut body_guard = match body.as_ref().and_then(RequestBody::stream_id) {
+    let body_guard = match body.as_ref().and_then(RequestBody::stream_id) {
         Some(stream_id) => match current_context().transfer_body_stream(stream_id) {
             Some(guard) => guard,
             None => return loader_throw(scope, "fetch: the body stream is not owned"),
         },
         None => RequestBodyGuard(None),
     };
-    let client = if redirect == "manual" {
+    let future = outbound_fetch(
+        method,
+        url,
+        body,
+        headers,
+        redirect == "manual",
+        body_guard,
+        current_trace_ids(scope),
+    );
+    let id = asyncrt::enqueue(async move {
+        let resp = future.await?;
+        let status = resp.status().as_u16();
+        let headers = resp
+            .headers()
+            .iter()
+            .map(|(k, v)| {
+                (
+                    k.as_str().to_owned(),
+                    v.to_str().unwrap_or_default().to_owned(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let stream_id = NEXT_HTTP_STREAM_ID.fetch_add(1, Ordering::Relaxed);
+        register_http_stream(stream_id, HttpStreamSource::Response(resp));
+        Ok(
+            serde_json::json!({"status": status, "streamId": stream_id, "headers": headers})
+                .to_string(),
+        )
+    });
+    rv.set(promise_for(scope, id));
+}
+
+/// Shared native HTTP operation. Call while the event context and storage are
+/// installed: durability is sampled here, before the future can leave the turn.
+fn outbound_fetch(
+    method: String,
+    url: String,
+    body: Option<RequestBody>,
+    mut headers: Vec<(String, String)>,
+    manual_redirect: bool,
+    mut body_guard: RequestBodyGuard,
+    trace: Option<crate::telemetry::TraceIds>,
+) -> impl std::future::Future<Output = Result<reqwest::Response, String>> + Send {
+    let client = if manual_redirect {
         HTTP_MANUAL.with(|client| client.clone())
     } else {
         HTTP.with(|client| client.clone())
     };
-    // The creating context, read here while JS is still running: the op
-    // future resolves on whatever worker polls it, far from any CPED.
-    let trace = current_trace_ids(scope);
+    // The caller captures trace and durability while its turn is installed;
+    // the future can subsequently be polled by any runtime thread.
     // The child's ids are minted before the request leaves so the
     // traceparent header carries them: whatever this fetch reaches can
     // join the trace celld is part of.
@@ -6339,7 +6423,7 @@ fn op_fetch(
     // un-act. That covers a write this handler made and a value it only read,
     // because the third party cannot tell the two apart.
     let gate = egress_gate_request(celld_logic::Channel::Fetch);
-    let id = asyncrt::enqueue(async move {
+    async move {
         let span_started = trace.as_ref().map(|_| crate::telemetry::now_unix_us());
         let mut span = trace.as_ref().zip(child).map(|(parent, child)| {
             let mut span =
@@ -6362,7 +6446,8 @@ fn op_fetch(
         await_egress_gate(gate).await.inspect_err(|error| {
             finish(false, None, Some(error.clone()));
         })?;
-        let m = reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::GET);
+        let m = reqwest::Method::from_bytes(method.as_bytes())
+            .map_err(|error| format!("invalid HTTP method: {error}"))?;
         // a timeout bounds a black-hole host: the future settles (Err) instead
         // of parking run_loop forever — the hang the Drop guard can't catch.
         let fetch_timeout = crate::env_vars::positive_or("CELLD_FETCH_TIMEOUT_S", 120)
@@ -6406,31 +6491,14 @@ fn op_fetch(
             Ok(resp) => {
                 let status = resp.status().as_u16();
                 finish(true, Some(status), None);
-                let headers = resp
-                    .headers()
-                    .iter()
-                    .map(|(name, value)| {
-                        (
-                            name.as_str().to_string(),
-                            value.to_str().unwrap_or_default().to_string(),
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                let stream_id = NEXT_HTTP_STREAM_ID.fetch_add(1, Ordering::Relaxed);
-                register_http_stream(stream_id, HttpStreamSource::Response(resp));
-                Ok(serde_json::json!({
-                    "status": status, "streamId": stream_id, "headers": headers,
-                })
-                .to_string())
+                Ok(resp)
             }
             Err(e) => {
                 finish(false, None, Some(format!("fetch: {e}")));
                 Err(format!("fetch: {e}"))
             }
         }
-    });
-    let p = promise_for(scope, id);
-    rv.set(p);
+    }
 }
 
 fn op_asset_fetch(
@@ -7672,6 +7740,11 @@ fn op_test_queue_rearm_bounded(
         QUEUE_REARM_BOUND_VIOLATED.with(|violated| violated.set(true));
     }
 }
+#[path = "monty_worker.rs"]
+mod monty_worker;
+#[path = "worker.rs"]
+mod worker;
+pub use worker::Worker;
 mod r2_ops;
 mod storage_ops;
 use storage_ops::{actor_runtime_state, throw_storage_error};

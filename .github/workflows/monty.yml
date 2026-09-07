@@ -1,0 +1,35 @@
+name: Native Monty
+on:
+  pull_request:
+    paths: ['Cargo.*', 'crates/**', 'examples/monty/**', 'tools/monty-checks/**', '.github/workflows/monty.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      CARGO_BUILD_JOBS: '2'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: rustup toolchain install 1.98.1 --profile minimal && rustup default 1.98.1
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: monty-${{ hashFiles('Cargo.lock') }}-${{ github.sha }}
+          restore-keys: |
+            monty-${{ hashFiles('Cargo.lock') }}-
+      - run: pip install mypy==2.3.1
+      - run: MYPYPATH=crates/monty-runtime/src mypy --strict examples/monty/worker.py
+      - run: MYPYPATH=crates/monty-runtime/src mypy --strict tools/monty-checks/bench/worker.py
+      - run: cargo test -p celld-monty --locked
+      - run: cargo test -p celld --profile lab --lib --test monty_native --locked
+      - run: cargo build -p celld --profile lab --locked
+      - run: python tools/monty-checks/e2e.py target/lab/celld

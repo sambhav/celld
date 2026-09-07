@@ -41,6 +41,7 @@ pub(crate) enum Action {
     },
     Deploy(Vec<String>),
     Dev(Vec<String>),
+    Types(Vec<String>),
     Cell(Vec<String>),
     D1(Vec<String>),
     Kv(Vec<String>),
@@ -76,6 +77,7 @@ pub(crate) fn action_from_process() -> anyhow::Result<Action> {
         match action {
             "deploy" => return Ok(Action::Deploy(arguments)),
             "dev" => return Ok(Action::Dev(arguments)),
+            "types" => return Ok(Action::Types(arguments)),
             "cell" => return Ok(Action::Cell(arguments)),
             "d1" => return Ok(Action::D1(arguments)),
             "kv" => return Ok(Action::Kv(arguments)),
@@ -273,6 +275,7 @@ USAGE:
   celld --bucket [s3://|gs://|az://]NAME[/PREFIX] [OPTIONS]
   celld deploy [PROJECT] --bucket [s3://|gs://|az://]NAME[/PREFIX] [OPTIONS]
   celld dev [PROJECT] [--host IP] [--port PORT] [--logs]
+  celld types > celld.pyi             Write types for the built-in Monty API
   celld cell list [CLASS] --bucket [s3://|gs://|az://]NAME[/PREFIX] [OPTIONS]
   celld d1 migrations apply DATABASE [PROJECT] --bucket [s3://|gs://|az://]NAME[/PREFIX]
   celld d1 execute DATABASE --command SQL [PROJECT] --bucket [s3://|gs://|az://]NAME[/PREFIX]

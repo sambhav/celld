@@ -2,7 +2,7 @@
 name = "celld"
 version = "0.4.0"
 edition = "2021"
-rust-version = "1.94.1"
+rust-version = "1.95"
 license = "Apache-2.0"
 
 
@@ -21,6 +21,7 @@ check-cfg = ["cfg(celld_internal_tests)", "cfg(celld_proxy_internals)"]
 disallowed_macros = "forbid"
 
 [dependencies]
+celld-monty = { path = "../monty-runtime" }
 async-trait.workspace = true
 chrono.workspace = true
 aes.workspace = true

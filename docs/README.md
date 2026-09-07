@@ -104,6 +104,7 @@ A cell fits a workload that divides into named, stateful units:
 - [Security](security.md)
 - [Telemetry](telemetry.md)
 - [Testing](testing.md)
+- [Python workers](python.md)
 - [WebAssembly](wasm.md)
 - [Rust library API](library-api.md)
 
