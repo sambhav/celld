@@ -436,13 +436,29 @@ pub fn build(options: &Options) -> anyhow::Result<Built> {
         .filter(|path| !path.as_os_str().is_empty())
         .map(Path::to_path_buf)
         .unwrap_or_else(|| PathBuf::from("."));
-    let project = read_project(&config_path, &root)?;
+    let mut project = read_project(&config_path, &root)?;
+    let is_monty = project
+        .entry
+        .as_deref()
+        .is_some_and(crate::python::is_python);
     let started = Instant::now();
     let built_assets = project.assets.as_ref().map(build_assets).transpose()?;
     let bundle = project
         .entry
         .as_deref()
         .map(|entry| {
+            if is_monty {
+                if project.no_bundle {
+                    bail!("Python entrypoints cannot set no_bundle");
+                }
+                if project.has_workflows || !project.queue_consumers.is_empty() {
+                    bail!("Monty does not support workflows or queue consumers");
+                }
+                return Ok(BundleOutput {
+                    bundle: crate::python::bundle(&root, entry)?,
+                    wasm: Vec::new(),
+                });
+            }
             if project.no_bundle {
                 // Already bundled by the caller's toolchain. Read it as it is;
                 // running esbuild over a Vite build is what corrupts it. A
@@ -462,9 +478,11 @@ pub fn build(options: &Options) -> anyhow::Result<Built> {
         .transpose()?;
     let bundled_in = started.elapsed();
 
-    // esbuild emits one JS module plus a copy of every wasm file the bundle
-    // imports; the copies ship as sibling modules.
-    let module_name = "index.js".to_string();
+    // Python ships one native source artifact. esbuild may emit sibling WASM.
+    let module_name = if is_monty { "index.py" } else { "index.js" }.to_string();
+    if project.entry.is_some() {
+        project.metadata["main_module"] = json!(module_name);
+    }
     let (mut modules, wasm_modules) = match bundle {
         Some(output) => (vec![(module_name.clone(), output.bundle)], output.wasm),
         None => (Vec::new(), Vec::new()),
@@ -516,6 +534,9 @@ pub fn build(options: &Options) -> anyhow::Result<Built> {
         // partially deserializing the manifest and failing at worker load.
         required_features: {
             let mut features = Vec::new();
+            if is_monty {
+                features.push(crate::protocol::FEATURE_MONTY_V1.to_string());
+            }
             if built_assets.is_some() {
                 features.push(FEATURE_ASSETS_V1.to_string());
             }
@@ -1520,6 +1541,19 @@ fn read_project(path: &Path, root: &Path) -> anyhow::Result<Project> {
                 "binding name {name:?} is declared by both a {previous} and a {kind} \
                  binding; every name in `env` must be unique"
             );
+        }
+    }
+    // Class identity and SQLite registration come from Python source.
+    if main.as_deref().is_some_and(crate::python::is_python) {
+        let source = std::fs::read_to_string(root.join(main.as_deref().unwrap()))?;
+        for class in celld_monty::exports::durable_classes(&source).map_err(anyhow::Error::msg)? {
+            if do_classes.contains(&class) || sqlite_classes.contains(&class) {
+                bail!(
+                    "Monty registers {class} automatically; remove its explicit binding/migration"
+                );
+            }
+            do_classes.push(class.clone());
+            sqlite_classes.push(class);
         }
     }
     let mut metadata = Map::new();

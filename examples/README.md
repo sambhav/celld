@@ -4,6 +4,7 @@ These small Wrangler projects demonstrate progressively more of the Worker and
 Durable Object surface supported by `celld`:
 
 - `hello/` — a stateless Worker `fetch` handler
+- [monty/](monty/) — Python POST handlers, dataclass responses and durable objects
 - `webapi/` — common Web Platform APIs
 - `counter/` — a SQLite-backed Durable Object
 - `vectordb/` — nearest-color search with a per-object `vec0` index

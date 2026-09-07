@@ -2891,6 +2891,17 @@ pub fn put(scope: &str, key: &str, val: &str) {
     });
 }
 
+/// Store a native JSON value as TEXT, readable by every runtime's JSON path.
+pub fn put_json(scope: &str, key: &str, value: &serde_json::Value) -> anyhow::Result<()> {
+    let encoded = serde_json::to_string(value)?;
+    with(scope, |c| {
+        c.prepare_cached(KV_PUT_SQL)?
+            .execute(rusqlite::params![scope, key, encoded])
+            .map(|_| ())
+            .map_err(Into::into)
+    }).unwrap_or_else(|| Err(anyhow::anyhow!("no db for {scope}")))
+}
+
 pub fn put_serialized(scope: &str, key: &str, value: &[u8]) -> anyhow::Result<()> {
     with(scope, |c| {
         c.prepare_cached(KV_PUT_SQL)?

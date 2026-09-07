@@ -3056,6 +3056,11 @@ async fn async_main(telemetry_config: Option<celld::telemetry::Config>) -> anyho
     let mut settings = match action {
         Action::Deploy(arguments) => return fleet::run_deploy(arguments).await,
         Action::Dev(arguments) => return celld::dev::run(arguments).await,
+        Action::Types(arguments) => {
+            if !arguments.is_empty() { anyhow::bail!("usage: celld types > celld.pyi"); }
+            print!("{}", celld_monty::TYPES);
+            return Ok(());
+        },
         Action::Cell(arguments) => return celld::cell_cli::run(arguments).await,
         Action::D1(arguments) => return celld::d1_cli::run(arguments).await,
         Action::Kv(arguments) => return celld::kv_cli::run(arguments).await,

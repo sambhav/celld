@@ -199,3 +199,26 @@ If you find an edge that we did not find, tell us: a schedule that breaks
 a promise, a fault that we did not inject, a number that you cannot
 reproduce. That is exactly the bug report that we want:
 [github.com/denoland/celld/issues](https://github.com/denoland/celld/issues).
+
+## Monty
+
+The native tests cover response conversion, typed arguments, direct durable
+calls, concurrency, cancellation, transactions, alarms, reload and disk recovery.
+Run them from the repository root:
+
+```sh
+cargo test -p celld-monty --locked
+cargo test -p celld --profile lab --lib --test monty_native --locked
+cargo build -p celld --profile lab --locked
+python tools/monty-checks/e2e.py target/lab/celld
+```
+
+For strict editor-type checks, install mypy and run:
+
+```sh
+MYPYPATH=crates/monty-runtime/src mypy --strict examples/monty/worker.py
+MYPYPATH=crates/monty-runtime/src mypy --strict tools/monty-checks/bench/worker.py
+```
+
+See the [benchmark instructions](../tools/monty-checks/bench/README.md) to compare
+Monty with TypeScript using the same binary.

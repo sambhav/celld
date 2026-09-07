@@ -89,5 +89,5 @@ chmod +x celld
 ```
 
 On macOS, use `shasum -a 256 --check` for verification. These fork binaries are
-not signed or notarized by Apple. Installing this native `celld` binary does not
-replace the separate Python SDK CLI, `pycelld`.
+not signed or notarized by Apple. The binary includes the native Monty runtime;
+see the [Python guide](python.md) for handlers and durable objects.

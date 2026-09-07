@@ -332,3 +332,22 @@ publish the patch, in whole or in part, with or without attribution.
 
 See the [limitations](docs/limitations.md) and
 [security](docs/security.md) pages before operating a public fleet.
+
+## Python workers
+
+Set `"main": "worker.py"` in Wrangler config and run `celld dev`:
+
+```python
+def hello(name: str = "world") -> str:
+    return f"Hello, {name}!"
+```
+
+POST `{"name":"Ada"}` to `/hello`. Public functions become handlers; return a
+Python value or dataclass, or raise an exception. Declare `ctx: Context` for
+storage, SQL, alarms, HTTP and timers. Construct durable objects directly with
+`Counter(id, ctx).increment()`; celld registers their storage automatically.
+
+Monty runs natively in Rust without a JavaScript adapter or Python installation.
+`celld types > celld.pyi` supplies editor types.
+See the [Python guide](docs/python.md), [runnable example](examples/monty), and
+[Monty/TypeScript benchmark](tools/monty-checks/bench/README.md).
