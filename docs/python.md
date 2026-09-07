@@ -145,7 +145,7 @@ Python executes entirely in Rust, including HTTP, async operations, durable
 calls, storage and alarms. It shares celld's admission, ownership, cancellation
 and durability mechanisms. Python workers allocate no V8 isolate; the binary
 still includes V8 for TypeScript. See the [benchmark](../tools/monty-checks/bench/README.md)
-and [test instructions](testing.md#monty).
+and [test instructions](testing.md).
 
 Limits: 256 KiB of source, 1 MiB per request/result/host reply, 100 ms of
 interpreter execution, 10,000 host operations, 256 live invocations per worker

@@ -1,6 +1,8 @@
 //! Native Python compilation, values, capabilities and suspended executions.
-pub mod exports;
-pub mod value;
+mod exports;
+mod runtime;
+mod value;
+pub use runtime::Monty;
 
 /// Editor definitions for the built-in Python module.
 pub const TYPES: &str = include_str!("celld.pyi");
@@ -9,7 +11,7 @@ use monty_types::{ExcType, ExtFunctionResult, MontyException, MontyObject, Print
 use serde_json::{Value, json};
 
 #[derive(Debug)]
-pub struct Failure {
+pub(crate) struct Failure {
     pub status: u16,
     pub code: String,
     pub message: String,
@@ -28,9 +30,6 @@ impl Failure {
             code: error.exc_type().to_string(),
             message: error.message().unwrap_or("Python execution failed").into(),
         }
-    }
-    pub fn json(&self) -> Value {
-        json!({"status":self.status,"code":self.code,"message":self.message})
     }
 }
 impl std::fmt::Display for Failure {
@@ -76,7 +75,7 @@ pub const CAPABILITIES: &[&str] = &[
     "log",
 ];
 
-pub struct Session {
+pub(crate) struct Session {
     pending: Option<FunctionCall>,
     calls: usize,
     rpc: bool,
@@ -265,3 +264,7 @@ impl Session {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/runtime.rs"]
+mod tests;

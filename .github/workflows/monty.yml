@@ -1,7 +1,7 @@
 name: Native Monty
 on:
   pull_request:
-    paths: ['Cargo.*', 'crates/**', 'examples/monty/**', 'tools/monty-checks/**', '.github/workflows/monty.yml']
+    paths: ['Cargo.*', '.cargo/**', 'xtask/**', 'patches/**', 'upstream/**', 'tests/**', 'crates/**', 'examples/monty/**', 'tools/monty-checks/**', '.github/workflows/monty.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -23,13 +23,12 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: monty-${{ hashFiles('Cargo.lock') }}-${{ github.sha }}
+          key: monty-${{ hashFiles('Cargo.lock', 'upstream/Cargo.lock', 'patches/*.patch', 'upstream/revision') }}-${{ github.sha }}
           restore-keys: |
-            monty-${{ hashFiles('Cargo.lock') }}-
+            monty-${{ hashFiles('Cargo.lock', 'upstream/Cargo.lock', 'patches/*.patch', 'upstream/revision') }}-
       - run: pip install mypy==2.3.1
       - run: MYPYPATH=crates/monty-runtime/src mypy --strict examples/monty/worker.py
       - run: MYPYPATH=crates/monty-runtime/src mypy --strict tools/monty-checks/bench/worker.py
-      - run: cargo test -p celld-monty --locked
-      - run: cargo test -p celld --profile lab --lib --test monty_native --locked
-      - run: cargo build -p celld --profile lab --locked
+      - run: cargo xtask test
+      - run: cargo xtask build
       - run: python tools/monty-checks/e2e.py target/lab/celld

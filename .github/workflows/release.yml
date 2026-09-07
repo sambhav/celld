@@ -1,4 +1,4 @@
-name: Fork binaries
+name: Native binaries
 
 # PRs build review artifacts. Label a same-repository PR `release-binaries`,
 # push `candidate`, or run manually to also create an immutable-source draft.
@@ -65,12 +65,13 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: fork-native-${{ matrix.target }}-${{ env.RUST_VERSION }}-${{ hashFiles('Cargo.lock') }}-${{ env.SOURCE_SHA }}
-          restore-keys: fork-native-${{ matrix.target }}-${{ env.RUST_VERSION }}-${{ hashFiles('Cargo.lock') }}-
+          key: fork-native-${{ matrix.target }}-${{ env.RUST_VERSION }}-${{ hashFiles('Cargo.lock', 'upstream/Cargo.lock', 'patches/*.patch', 'upstream/revision') }}-${{ env.SOURCE_SHA }}
+          restore-keys: fork-native-${{ matrix.target }}-${{ env.RUST_VERSION }}-${{ hashFiles('Cargo.lock', 'upstream/Cargo.lock', 'patches/*.patch', 'upstream/revision') }}-
+      - run: cargo xtask prepare
       - name: Test configuration and placement
         run: cargo test --manifest-path tools/packing-checks/Cargo.toml --locked
       - name: Build release binary
-        run: cargo build -p celld --target "$TARGET" --release --locked
+        run: cargo xtask build --target "$TARGET" --release
       - name: Cache the successful build before running binary checks
         uses: actions/cache/save@v4
         if: steps.cache.outputs.cache-hit != 'true'
@@ -92,7 +93,7 @@ jobs:
           import gzip, hashlib, json, os, pathlib, subprocess, tomllib
           target = os.environ['TARGET']
           binary = pathlib.Path(f'target/{target}/release/celld')
-          version = tomllib.loads(pathlib.Path('crates/celld/Cargo.toml').read_text())['package']['version']
+          version = tomllib.loads(pathlib.Path('target/celld/crates/celld/Cargo.toml').read_text())['package']['version']
           reported = subprocess.check_output([str(binary), '--version'], text=True).strip()
           assert reported == f'celld {version}', reported
           source = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
@@ -105,6 +106,7 @@ jobs:
           (out / f'build-{target}.json').write_text(json.dumps({
               'target': target, 'version': version, 'source_sha': source,
               'repository': os.environ['GITHUB_REPOSITORY'],
+              'upstream_revision': pathlib.Path('upstream/revision').read_text().strip(),
               'rust_version': os.environ['RUST_VERSION'], 'profile': 'release',
               'archive': archive.name, 'sha256': hashlib.sha256(archive.read_bytes()).hexdigest(),
               'binary_sha256': hashlib.sha256(binary.read_bytes()).hexdigest(),
